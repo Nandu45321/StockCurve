@@ -14,6 +14,9 @@ class EuclideanMatcher(BaseMatcher):
 
     name = "Euclidean"
 
+    def __init__(self, sigma: float = 2.0):
+        self.sigma = sigma
+
     def match(self, sketch: np.ndarray, candidates: list[dict]) -> list[dict]:
         """
         Compute Euclidean distance between sketch.smooth and each window.smooth.
@@ -24,12 +27,17 @@ class EuclideanMatcher(BaseMatcher):
         """
         from scipy.ndimage import gaussian_filter1d
 
-        # Smooth the sketch with the same sigma used when building windows
-        sketch_smooth = gaussian_filter1d(sketch.astype(np.float64), sigma=2.0)
+        # Smooth the sketch with the requested sigma
+        sketch_smooth = gaussian_filter1d(sketch.astype(np.float64), sigma=self.sigma)
 
         scored: list[dict] = []
         for cand in candidates:
-            window_smooth = cand["smooth"]
+            # If sigma is default 2.0, use precomputed smooth. Otherwise dynamically smooth the raw normalized curve.
+            if abs(self.sigma - 2.0) < 1e-5:
+                window_smooth = cand["smooth"]
+            else:
+                window_smooth = gaussian_filter1d(cand["norm"].astype(np.float64), sigma=self.sigma)
+                
             dist = float(np.linalg.norm(sketch_smooth - window_smooth))
             entry = dict(cand)          # shallow copy — never modify in-place
             entry["euclidean_score"] = dist

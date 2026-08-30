@@ -69,6 +69,12 @@
                 <option value="60" selected>60 d</option>
                 <option value="90">90 d</option>
               </select>
+              
+              <label for="smoothing-slider" class="input-label">
+                Smoothing
+              </label>
+              <input type="range" id="smoothing-slider" min="0" max="10" step="0.5" value="2.0" style="width: 100px; accent-color: var(--accent);" />
+
               <button id="btn-clear" class="btn btn-outline">Clear</button>
             </div>
 
@@ -219,6 +225,12 @@ function startDraw(e) {
 function doDraw(e) {
   if (!isDrawing) return;
   const pos = getPos(e);
+  
+  // Prevent drawing backwards on the X axis to avoid loops
+  if (points.length > 0 && pos.x <= points[points.length - 1].x) {
+    return;
+  }
+  
   points.push(pos);
   ctx.lineTo(pos.x, pos.y);
   ctx.stroke();
@@ -245,7 +257,7 @@ document.getElementById('btn-clear').addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------
-// Cap toggle chips — visual state sync
+// Cap toggle chips & slider — visual state sync & auto-search
 // ---------------------------------------------------------------
 ['large', 'mid', 'small'].forEach(cap => {
   const lbl = document.getElementById(`toggle-${cap}`);
@@ -253,7 +265,22 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   cb.addEventListener('change', () => {
     if (cb.checked) lbl.classList.add('active');
     else            lbl.classList.remove('active');
+    
+    // Auto-search if sketch exists
+    if (points.length > 10) prepareAndSend();
   });
+});
+
+document.getElementById('smoothing-slider').addEventListener('input', () => {
+  if (points.length > 10) {
+    prepareAndSend();
+  }
+});
+
+document.getElementById('window-days').addEventListener('change', () => {
+  if (points.length > 10) {
+    prepareAndSend();
+  }
 });
 
 // ---------------------------------------------------------------
@@ -298,6 +325,7 @@ async function prepareAndSend() {
     mid:         document.getElementById('cap-mid').checked,
     small:       document.getElementById('cap-small').checked,
     window_days: parseInt(document.getElementById('window-days').value, 10),
+    smoothing:   parseFloat(document.getElementById('smoothing-slider').value)
   };
 
   resetProgress();
@@ -399,10 +427,18 @@ function renderResults(results) {
   const yRaw = points.map(p => h - p.y);
   const sketchOverlay = points.length > 10 ? znormJS(resampleJS(yRaw, 50)) : null;
 
+  const windowDays = parseInt(document.getElementById('window-days').value, 10);
+
   results.forEach((r, idx) => {
     const matchPct = Math.max(0, Math.round((1 - Math.min(r.score / 10, 1)) * 100));
     const euPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Euclidean / 10, 1)) * 100));
     const foPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Fourier   / 10, 1)) * 100));
+
+    // Calculate approximate start date (trading days -> calendar days)
+    const endDate = new Date(r.date_end);
+    const startDate = new Date(endDate.getTime() - windowDays * 1.45 * 24 * 60 * 60 * 1000);
+    const fmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateRangeStr = `${fmt.format(startDate)} — ${fmt.format(endDate)}`;
 
     const article = document.createElement('article');
     article.className = 'result-card';
@@ -427,9 +463,9 @@ function renderResults(results) {
       </div>
 
       <footer class="result-footer">
-        <span>📅 ${r.date_end}</span>
         <span class="score-eu">Euclidean ${euPct}%</span>
         <span class="score-fo">Fourier ${foPct}%</span>
+        <span style="margin-left: auto;"> ${dateRangeStr}</span>
       </footer>
     `;
 

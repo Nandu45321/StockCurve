@@ -181,7 +181,8 @@ async def run_pipeline(
     # ------------------------------------------------------------------
     # Stage 2 — Smoothed Euclidean
     # ------------------------------------------------------------------
-    euclidean_matcher = EuclideanMatcher()
+    smoothing = filters.get("smoothing", 2.0)
+    euclidean_matcher = EuclideanMatcher(sigma=smoothing)
     candidates = euclidean_matcher.match(sketch, candidates)
     stage2_count = len(candidates)
 
