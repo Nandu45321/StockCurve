@@ -160,7 +160,12 @@ def make_windows(prices: pd.Series, symbol: str, cap: str, sector: str) -> list[
         if np.any(np.isnan(raw)) or np.any(raw <= 0):
             continue  # skip corrupted windows
 
-        std_val = float(np.std(raw))
+        # CONFLICT NOTE: AGENTS.md says "std of raw window" but thresholds 0.01–3.0
+        # only make sense for a dimensionless measure. Raw price std for NSE stocks
+        # ranges from ₹8 (penny stocks) to ₹700+ (MRF), so std_thresh_high=3.0 would
+        # eliminate everything. We store coefficient of variation (std/mean) instead,
+        # which is scale-free. CV ≈ 0.02–0.30 for typical 60-day windows.
+        std_val = float(np.std(raw) / np.mean(raw))
         norm_arr = znorm(resample(raw, 50))
         smooth_arr = smooth(norm_arr, sigma=2.0)
         date_end = str(dates[end - 1].date())

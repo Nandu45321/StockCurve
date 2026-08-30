@@ -1,101 +1,122 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shazam for Stocks — NSE/BSE Shape Search Engine</title>
   <meta name="description" content="Draw a stock chart shape and find matching NSE/BSE stocks using pattern recognition. Like Shazam but for Indian equity markets." />
+  <!-- Pico CSS — dark theme, semantic markup baseline -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-<div class="app-wrapper">
-
-  <!-- Header -->
-  <header class="header">
-    <div class="header-badge">
-      <span>⚡</span> NSE &amp; BSE · Shape Search
-    </div>
-    <h1>Shazam for Stocks</h1>
-    <p>Draw a price curve. Find Indian stocks that look just like it.</p>
+  <header class="container">
+    <hgroup>
+      <p class="site-eyebrow">⚡ NSE &amp; BSE · Shape Search</p>
+      <h1>Shazam for Stocks</h1>
+      <p>Draw a price curve. Find Indian stocks that look just like it.</p>
+    </hgroup>
   </header>
 
-  <!-- Draw canvas card -->
-  <section class="card" aria-label="Drawing canvas">
-    <div class="card-label">Draw your pattern</div>
+  <main class="container">
+    <div class="app-grid">
 
-    <div class="canvas-wrapper" id="canvas-wrapper">
-      <canvas id="sketch-canvas" width="850" height="200"
-              role="img" aria-label="Stock pattern drawing canvas"></canvas>
-      <div class="canvas-hint" id="canvas-hint">
-        <span class="canvas-hint-icon">✏️</span>
-        Click and drag to draw a price curve
-      </div>
-    </div>
+      <!-- ═══════════════════════════════════════════
+           LEFT — drawing scratchpad
+           ═══════════════════════════════════════════ -->
+      <aside class="left-panel">
 
-    <!-- Filters -->
-    <div class="filters-row">
-      <span class="filter-group-label">Cap</span>
+        <section aria-label="Pattern drawing">
+          <h2>Scratchpad</h2>
 
-      <label class="cap-toggle active-large" id="toggle-large" title="Large cap stocks">
-        <input type="checkbox" id="cap-large" checked /> Large
-      </label>
-      <label class="cap-toggle active-mid" id="toggle-mid" title="Mid cap stocks">
-        <input type="checkbox" id="cap-mid" checked /> Mid
-      </label>
-      <label class="cap-toggle" id="toggle-small" title="Small cap stocks">
-        <input type="checkbox" id="cap-small" /> Small
-      </label>
+          <div class="canvas-wrapper" id="canvas-wrapper">
+            <canvas id="sketch-canvas"
+                    role="img" aria-label="Stock pattern drawing canvas"></canvas>
+            <div class="canvas-hint" id="canvas-hint">
+              ✏️&nbsp; Click and drag to draw a price curve
+            </div>
+          </div>
 
-      <span class="filter-group-label" style="margin-left:0.5rem">Window</span>
-      <select class="window-select" id="window-days" title="Window length in trading days">
-        <option value="30">30 days</option>
-        <option value="60" selected>60 days</option>
-        <option value="90">90 days</option>
-      </select>
+          <!-- Filters -->
+          <div class="filter-bar" role="group" aria-label="Search filters">
 
-      <button class="btn-clear" id="btn-clear" title="Clear canvas">Clear</button>
-    </div>
-  </section>
+            <fieldset class="cap-fieldset">
+              <legend>Cap</legend>
+              <label class="cap-toggle active-large" id="toggle-large">
+                <input type="checkbox" id="cap-large" checked /> Large
+              </label>
+              <label class="cap-toggle active-mid" id="toggle-mid">
+                <input type="checkbox" id="cap-mid" checked /> Mid
+              </label>
+              <label class="cap-toggle" id="toggle-small">
+                <input type="checkbox" id="cap-small" /> Small
+              </label>
+            </fieldset>
 
-  <!-- Progress panel -->
-  <section class="progress-panel" id="progress-panel" aria-live="polite" aria-label="Search progress">
-    <div class="progress-title">Search progress</div>
-    <ul class="stage-list">
-      <li class="stage-item" id="stage-1" data-state="pending">
-        <span class="stage-icon"></span>
-        <span class="stage-label">Hard filters</span>
-        <span class="stage-count" id="count-1">—</span>
-        <span class="stage-status" id="status-1"></span>
-      </li>
-      <li class="stage-item" id="stage-2" data-state="pending">
-        <span class="stage-icon"></span>
-        <span class="stage-label">Smoothed Euclidean</span>
-        <span class="stage-count" id="count-2">—</span>
-        <span class="stage-status" id="status-2"></span>
-      </li>
-      <li class="stage-item" id="stage-3" data-state="pending">
-        <span class="stage-icon"></span>
-        <span class="stage-label">Fourier matching</span>
-        <span class="stage-count" id="count-3">—</span>
-        <span class="stage-status" id="status-3"></span>
-      </li>
-      <li class="stage-item" id="stage-4" data-state="pending">
-        <span class="stage-icon"></span>
-        <span class="stage-label">Convergence &amp; blend</span>
-        <span class="stage-count" id="count-4">—</span>
-        <span class="stage-status" id="status-4"></span>
-      </li>
-    </ul>
-  </section>
+            <label for="window-days" class="window-label">
+              Window
+              <select id="window-days">
+                <option value="30">30 d</option>
+                <option value="60" selected>60 d</option>
+                <option value="90">90 d</option>
+              </select>
+            </label>
 
-  <!-- Results section -->
-  <section class="results-section" id="results-section" aria-label="Search results">
-    <div class="results-header">Top matches</div>
-    <div class="results-grid" id="results-grid"></div>
-  </section>
+            <button id="btn-clear" class="secondary outline">Clear</button>
 
-</div><!-- /app-wrapper -->
+          </div>
+        </section>
+
+        <!-- Pipeline progress (left panel, below canvas) -->
+        <section id="progress-panel" aria-live="polite" aria-label="Search progress" hidden>
+          <h2>Progress</h2>
+          <ul class="stage-list" role="list">
+            <li class="stage-item" id="stage-1" data-state="pending">
+              <span class="stage-dot" aria-hidden="true"></span>
+              <span class="stage-label">Hard filters</span>
+              <span class="stage-count" id="count-1">—</span>
+              <span class="stage-status" id="status-1"></span>
+            </li>
+            <li class="stage-item" id="stage-2" data-state="pending">
+              <span class="stage-dot" aria-hidden="true"></span>
+              <span class="stage-label">Euclidean</span>
+              <span class="stage-count" id="count-2">—</span>
+              <span class="stage-status" id="status-2"></span>
+            </li>
+            <li class="stage-item" id="stage-3" data-state="pending">
+              <span class="stage-dot" aria-hidden="true"></span>
+              <span class="stage-label">Fourier</span>
+              <span class="stage-count" id="count-3">—</span>
+              <span class="stage-status" id="status-3"></span>
+            </li>
+            <li class="stage-item" id="stage-4" data-state="pending">
+              <span class="stage-dot" aria-hidden="true"></span>
+              <span class="stage-label">Convergence</span>
+              <span class="stage-count" id="count-4">—</span>
+              <span class="stage-status" id="status-4"></span>
+            </li>
+          </ul>
+        </section>
+
+      </aside>
+
+      <!-- ═══════════════════════════════════════════
+           RIGHT — predicted stocks
+           ═══════════════════════════════════════════ -->
+      <section class="right-panel" id="results-section" aria-label="Search results">
+        <h2>Matches</h2>
+
+        <!-- Placeholder shown before first search -->
+        <div class="results-placeholder" id="results-placeholder">
+          <p>Draw a curve on the left to find matching stocks.</p>
+        </div>
+
+        <div id="results-grid" role="list"></div>
+      </section>
+
+    </div><!-- /app-grid -->
+  </main>
 
 <script>
 /* ============================================================
@@ -121,7 +142,6 @@ function scaleCanvas() {
   canvas.width  = rect.width  * dpr;
   canvas.height = rect.height * dpr;
   ctx.scale(dpr, dpr);
-  // Store logical size for coordinate math
   canvas._logicalWidth  = rect.width;
   canvas._logicalHeight = rect.height;
 }
@@ -214,40 +234,34 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   initCanvas();
   hint.classList.remove('hidden');
   hideProgress();
-  hideResults();
+  clearResults();
 });
 
 // ---------------------------------------------------------------
-// Cap toggle chips
+// Cap toggle chips — visual state sync
 // ---------------------------------------------------------------
 ['large', 'mid', 'small'].forEach(cap => {
   const lbl = document.getElementById(`toggle-${cap}`);
   const cb  = document.getElementById(`cap-${cap}`);
   cb.addEventListener('change', () => {
-    if (cb.checked) {
-      lbl.classList.add(`active-${cap}`);
-    } else {
-      lbl.classList.remove(`active-${cap}`);
-    }
+    if (cb.checked) lbl.classList.add(`active-${cap}`);
+    else            lbl.classList.remove(`active-${cap}`);
   });
 });
 
 // ---------------------------------------------------------------
-// Resampling (50 points via linear interpolation — done in JS per AGENTS.md)
+// Resampling (50 points via linear interpolation — per AGENTS.md)
 // ---------------------------------------------------------------
 function resampleJS(yVals, target) {
-  /**
-   * Linearly interpolate yVals to `target` evenly-spaced points.
-   * This is the ONLY computation the frontend is allowed to do.
-   */
+  /** Linearly interpolate yVals to `target` evenly-spaced points. */
   const n   = yVals.length;
   const out = new Float64Array(target);
   for (let i = 0; i < target; i++) {
-    const t     = i / (target - 1);
-    const srcF  = t * (n - 1);
-    const lo    = Math.floor(srcF);
-    const hi    = Math.min(lo + 1, n - 1);
-    const frac  = srcF - lo;
+    const t    = i / (target - 1);
+    const srcF = t * (n - 1);
+    const lo   = Math.floor(srcF);
+    const hi   = Math.min(lo + 1, n - 1);
+    const frac = srcF - lo;
     out[i] = yVals[lo] * (1 - frac) + yVals[hi] * frac;
   }
   return out;
@@ -268,17 +282,10 @@ function znormJS(arr) {
 async function prepareAndSend() {
   if (points.length < 10) return;
 
-  // Extract y-values (flip: canvas y=0 is top, stock price y=0 is bottom)
-  const h    = canvas._logicalHeight || canvas.getBoundingClientRect().height;
-  const yRaw = points.map(p => h - p.y);
+  const h      = canvas._logicalHeight || canvas.getBoundingClientRect().height;
+  const yRaw   = points.map(p => h - p.y);
+  const sketch = znormJS(resampleJS(yRaw, 50));
 
-  // Resample to 50 points
-  const y50 = resampleJS(yRaw, 50);
-
-  // Z-normalize
-  const sketch = znormJS(y50);
-
-  // Read filter state
   const filters = {
     large:       document.getElementById('cap-large').checked,
     mid:         document.getElementById('cap-mid').checked,
@@ -286,30 +293,19 @@ async function prepareAndSend() {
     window_days: parseInt(document.getElementById('window-days').value, 10),
   };
 
-  // Reset UI
   resetProgress();
   showProgress();
-  hideResults();
+  clearResults();
 
   try {
-    // POST to /search → get search_id
     const res = await fetch('/search', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ sketch, filters }),
     });
-
-    if (!res.ok) {
-      const err = await res.json();
-      console.error('POST /search failed:', err);
-      return;
-    }
-
+    if (!res.ok) { console.error('POST /search failed:', await res.json()); return; }
     const { search_id } = await res.json();
-
-    // Open SSE stream
     openSSEStream(search_id);
-
   } catch (err) {
     console.error('Search failed:', err);
   }
@@ -320,89 +316,61 @@ async function prepareAndSend() {
 // ---------------------------------------------------------------
 function openSSEStream(searchId) {
   const es = new EventSource(`/search-stream/${searchId}`);
-
   es.onmessage = (e) => {
     const event = JSON.parse(e.data);
     handleStageEvent(event);
-    if (event.stage >= 4 || event.stage === -1) {
-      es.close();
-    }
+    if (event.stage >= 4 || event.stage === -1) es.close();
   };
-
-  es.onerror = (e) => {
-    console.error('SSE error:', e);
-    es.close();
-  };
+  es.onerror = (e) => { console.error('SSE error:', e); es.close(); };
 }
 
 // ---------------------------------------------------------------
-// Progress UI updates
+// Progress UI
 // ---------------------------------------------------------------
-const STAGE_LABELS = {
-  1: 'Hard filters',
-  2: 'Smoothed Euclidean',
-  3: 'Fourier matching',
-  4: 'Convergence & blend',
-};
-
 function resetProgress() {
   for (let s = 1; s <= 4; s++) {
-    const item = document.getElementById(`stage-${s}`);
-    item.dataset.state = 'pending';
-    document.getElementById(`count-${s}`).textContent = '—';
-    document.getElementById(`status-${s}`).innerHTML  = '';
+    document.getElementById(`stage-${s}`).dataset.state = 'pending';
+    document.getElementById(`count-${s}`).textContent   = '—';
+    document.getElementById(`status-${s}`).innerHTML    = '';
   }
 }
 
 function handleStageEvent(event) {
-  if (event.stage === -1) {
-    console.error('Pipeline error:', event.message);
-    return;
-  }
+  if (event.stage === -1) { console.error('Pipeline error:', event.message); return; }
 
   const s    = event.stage;
   const item = document.getElementById(`stage-${s}`);
   if (!item) return;
 
   item.dataset.state = 'done';
-
-  if (s < 4) {
-    document.getElementById(`count-${s}`).textContent =
-      `${event.total} → ${event.remaining}`;
-  } else {
-    document.getElementById(`count-${s}`).textContent =
-      `top ${event.remaining}`;
-  }
+  document.getElementById(`count-${s}`).textContent =
+    s < 4 ? `${event.total} → ${event.remaining}` : `top ${event.remaining}`;
   document.getElementById(`status-${s}`).textContent = '✓';
 
-  // Mark next stage as running
   if (s < 4) {
-    const next = document.getElementById(`stage-${s + 1}`);
-    if (next) next.dataset.state = 'running';
+    document.getElementById(`stage-${s + 1}`).dataset.state = 'running';
     document.getElementById(`status-${s + 1}`).innerHTML =
-      '<span class="spinner"></span>';
+      '<span class="spinner" aria-label="Running"></span>';
   }
 
-  // Render results on final stage
   if (s === 4 && event.results && event.results.length > 0) {
     renderResults(event.results);
   }
 }
 
 function showProgress() {
-  document.getElementById('progress-panel').classList.add('visible');
-  // Mark stage 1 as running immediately
-  const s1 = document.getElementById('stage-1');
-  s1.dataset.state = 'running';
-  document.getElementById('status-1').innerHTML = '<span class="spinner"></span>';
+  document.getElementById('progress-panel').removeAttribute('hidden');
+  document.getElementById('stage-1').dataset.state = 'running';
+  document.getElementById('status-1').innerHTML =
+    '<span class="spinner" aria-label="Running"></span>';
 }
 
 function hideProgress() {
-  document.getElementById('progress-panel').classList.remove('visible');
+  document.getElementById('progress-panel').setAttribute('hidden', '');
 }
 
-function hideResults() {
-  document.getElementById('results-section').classList.remove('visible');
+function clearResults() {
+  document.getElementById('results-placeholder').style.display = '';
   document.getElementById('results-grid').innerHTML = '';
 }
 
@@ -410,83 +378,82 @@ function hideResults() {
 // Result rendering + mini charts
 // ---------------------------------------------------------------
 function renderResults(results) {
+  document.getElementById('results-placeholder').style.display = 'none';
   const grid = document.getElementById('results-grid');
   grid.innerHTML = '';
 
-  // Capture current sketch y-values (already z-normed, for overlay)
   const h    = canvas._logicalHeight || canvas.getBoundingClientRect().height;
   const yRaw = points.map(p => h - p.y);
-  const sketchOverlay = points.length > 10
-    ? znormJS(resampleJS(yRaw, 50))
-    : null;
+  const sketchOverlay = points.length > 10 ? znormJS(resampleJS(yRaw, 50)) : null;
 
   results.forEach((r, idx) => {
-    // Score as percentage (invert distance: 0 dist = 100%, higher dist = lower %)
-    // We display a normalised match quality: map score to 0–100 where lower dist = higher %
-    // Simple approach: clamp and invert relative to a max expected distance of 10
     const matchPct = Math.max(0, Math.round((1 - Math.min(r.score / 10, 1)) * 100));
     const euPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Euclidean / 10, 1)) * 100));
     const foPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Fourier   / 10, 1)) * 100));
 
-    const card = document.createElement('div');
-    card.className = 'result-card';
-    card.style.animationDelay = `${idx * 0.07}s`;
+    const article = document.createElement('article');
+    article.className = 'result-card';
+    article.setAttribute('role', 'listitem');
+    article.style.animationDelay = `${idx * 0.07}s`;
 
-    card.innerHTML = `
-      <div>
-        <div class="result-rank">#${idx + 1}</div>
-        <div class="result-symbol">${r.symbol}</div>
-        <div class="result-name">${r.name}</div>
-        <div class="result-meta">
-          <span class="result-tag">📅 ${r.date_end}</span>
+    article.innerHTML = `
+      <header class="result-card-header">
+        <div class="result-card-meta">
+          <small class="result-rank">#${idx + 1}</small>
+          <strong class="result-symbol">${r.symbol}</strong>
+          <span class="result-name">${r.name}</span>
         </div>
-        <div class="result-scores">
-          <span class="score-eu">Euclidean ${euPct}%</span>
-          <span>·</span>
-          <span class="score-fo">Fourier ${foPct}%</span>
+        <div class="result-score-badge">
+          <small>Match</small>
+          <strong class="score-value">${matchPct}<span class="score-unit">%</span></strong>
         </div>
-      </div>
-      <div class="result-score-badge">
-        <div class="score-label">Match</div>
-        <div class="score-value">${matchPct}<span class="score-unit">%</span></div>
-      </div>
-      <canvas class="mini-chart" id="mini-${idx}" width="800" height="140"
+      </header>
+
+      <canvas class="mini-chart" id="mini-${idx}" width="600" height="200"
               aria-label="Price curve for ${r.symbol}"></canvas>
+
+      <footer class="result-card-footer">
+        <small>📅 ${r.date_end}</small>
+        <small class="score-eu">Euclidean ${euPct}%</small>
+        <small class="score-fo">Fourier ${foPct}%</small>
+      </footer>
     `;
 
-    grid.appendChild(card);
-
-    // Draw mini chart after DOM insertion
+    grid.appendChild(article);
     drawMiniChart(`mini-${idx}`, r.curve, sketchOverlay);
   });
-
-  document.getElementById('results-section').classList.add('visible');
 }
 
 function drawMiniChart(canvasId, curve, sketchOverlay) {
   /** Render stock curve (green) + optional sketch overlay (purple dashed). */
-  const mc  = document.getElementById(canvasId);
+  const mc   = document.getElementById(canvasId);
   if (!mc) return;
   const mctx = mc.getContext('2d');
-  const W = mc.width, H = mc.height;
-  const pad = 10;
+  const W    = mc.width, H = mc.height;
+  const pad  = 12;
 
   mctx.fillStyle = '#050608';
   mctx.fillRect(0, 0, W, H);
 
-  function plotLine(data, color, dashed) {
-    const minV = Math.min(...data);
-    const maxV = Math.max(...data);
-    const range = (maxV - minV) || 1;
+  // Draw a subtle grid
+  mctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  mctx.lineWidth   = 1;
+  for (let i = 1; i < 4; i++) {
+    const y = pad + (i / 4) * (H - 2 * pad);
+    mctx.beginPath(); mctx.moveTo(pad, y); mctx.lineTo(W - pad, y); mctx.stroke();
+  }
 
+  function plotLine(data, color, dashed) {
+    const minV  = Math.min(...data);
+    const maxV  = Math.max(...data);
+    const range = (maxV - minV) || 1;
     mctx.beginPath();
     mctx.strokeStyle = color;
-    mctx.lineWidth   = 2;
+    mctx.lineWidth   = dashed ? 1.5 : 2;
     mctx.lineJoin    = 'round';
     mctx.lineCap     = 'round';
-    if (dashed) mctx.setLineDash([4, 4]);
+    if (dashed) mctx.setLineDash([5, 5]);
     else        mctx.setLineDash([]);
-
     data.forEach((v, i) => {
       const x = pad + (i / (data.length - 1)) * (W - 2 * pad);
       const y = (H - pad) - ((v - minV) / range) * (H - 2 * pad);
@@ -496,13 +463,8 @@ function drawMiniChart(canvasId, curve, sketchOverlay) {
     mctx.setLineDash([]);
   }
 
-  // Stock curve — green
   plotLine(curve, '#4ade80', false);
-
-  // Sketch overlay — purple dashed (normalize to same visual range as curve)
-  if (sketchOverlay) {
-    plotLine(sketchOverlay, '#a78bfa', true);
-  }
+  if (sketchOverlay) plotLine(sketchOverlay, '#a78bfa', true);
 }
 </script>
 </body>
