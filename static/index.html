@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css?v=3" />
+  <link rel="stylesheet" href="/static/style.css?v=6" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -271,7 +271,7 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   });
 });
 
-document.getElementById('smoothing-slider').addEventListener('input', () => {
+document.getElementById('smoothing-slider').addEventListener('change', () => {
   if (points.length > 10) {
     prepareAndSend();
   }
@@ -389,7 +389,7 @@ function handleStageEvent(event) {
   }
 
   if (s === 4 && event.results && event.results.length > 0) {
-    renderResults(event.results);
+    renderResults(event.results, event.smoothed_sketch);
   }
 }
 
@@ -418,14 +418,12 @@ function clearResults() {
 // ---------------------------------------------------------------
 // Result rendering + Chart.js charts
 // ---------------------------------------------------------------
-function renderResults(results) {
+function renderResults(results, smoothed_sketch) {
   document.getElementById('results-placeholder').style.display = 'none';
   const grid = document.getElementById('results-grid');
   grid.innerHTML = '';
 
-  const h    = canvas._logicalHeight || canvas.getBoundingClientRect().height;
-  const yRaw = points.map(p => h - p.y);
-  const sketchOverlay = points.length > 10 ? znormJS(resampleJS(yRaw, 50)) : null;
+  const sketchOverlay = smoothed_sketch || null;
 
   const windowDays = parseInt(document.getElementById('window-days').value, 10);
 

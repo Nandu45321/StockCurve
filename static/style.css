@@ -244,18 +244,18 @@ ul, ol { list-style: none; }
 .cap-toggle.active::after { transform: scaleX(1); }
 
 /* Scratchpad Canvas */
-.canvas-container {
+.canvas-wrapper {
   position: relative;
   background: var(--bg);
   border: 2px solid var(--muted-fg);
-  aspect-ratio: 8 / 9;
+  aspect-ratio: 4 / 3;
   width: 100%;
   margin-bottom: 2rem;
   cursor: crosshair;
   transition: border-color 150ms;
 }
-.canvas-container.drawing { border-color: var(--accent); }
-#scratch-canvas {
+.canvas-wrapper.drawing { border-color: var(--accent); }
+#sketch-canvas {
   position: absolute;
   inset: 0;
   width: 100%;

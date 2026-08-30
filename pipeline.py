@@ -239,6 +239,14 @@ async def run_pipeline(
     }
     print(json.dumps(research_log))
 
+    # Calculate smoothed_sketch to send to frontend for overlay
+    sigma = filters.get("smoothing", 2.0)
+    if sigma > 0:
+        from scipy.ndimage import gaussian_filter1d
+        smoothed_sketch = gaussian_filter1d(sketch.astype(np.float64), sigma=sigma)
+    else:
+        smoothed_sketch = sketch.astype(np.float64)
+
     yield {
         "stage": 4,
         "label": "Convergence",
@@ -246,4 +254,5 @@ async def run_pipeline(
         "remaining": len(top10),
         "total": total,
         "results": top10,
+        "smoothed_sketch": smoothed_sketch.tolist(),
     }
