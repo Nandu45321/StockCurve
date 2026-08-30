@@ -256,9 +256,9 @@
    Result cards (right panel)
    -------------------------------------------------------------------------- */
 #results-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
 }
 
 .result-card {
@@ -361,7 +361,8 @@
   margin-right: calc(-1 * var(--pico-block-spacing-horizontal, 1rem));
   width: calc(100% + 2 * var(--pico-block-spacing-horizontal, 1rem));
 
-  /* Give Chart.js a fixed height to render into */
-  height: 200px;
+  /* Use aspect-ratio instead of fixed height to keep it squarish */
+  aspect-ratio: 4 / 3;
+  height: auto;
   padding: 0.5rem 0.75rem 0.4rem;
 }
