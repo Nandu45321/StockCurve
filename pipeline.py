@@ -128,6 +128,7 @@ def convergence(
             "date_end": cand["date_end"],
             "score": round(final, 6),
             "curve": cand["norm"].tolist(),
+            "raw_curve": cand["raw"].tolist(),
             "matcher_scores": {
                 "Euclidean": round(eu, 6),
                 "Fourier": round(fo, 6),

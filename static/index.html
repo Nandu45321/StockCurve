@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css?v=6" />
+  <link rel="stylesheet" href="/static/style.css?v=9" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -423,7 +423,7 @@ function renderResults(results, smoothed_sketch) {
   const grid = document.getElementById('results-grid');
   grid.innerHTML = '';
 
-  const sketchOverlay = smoothed_sketch || null;
+  const sketchOverlay = smoothed_sketch ? znormJS(smoothed_sketch) : null;
 
   const windowDays = parseInt(document.getElementById('window-days').value, 10);
 
@@ -481,7 +481,19 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
   const el = document.getElementById(canvasId);
   if (!el) return;
 
-  const curve = result.curve;
+  const curve = result.raw_curve || result.curve; // Use raw price curve if available
+
+  // Calculate mean and std of the price curve to map the normalized sketch to it
+  let sum = 0, sumSq = 0;
+  for (const v of curve) { sum += v; }
+  const mean = sum / curve.length;
+  for (const v of curve) { sumSq += (v - mean) * (v - mean); }
+  const std = Math.sqrt(sumSq / curve.length);
+
+  let scaledSketch = sketchOverlay ? sketchOverlay.map(v => (v * std) + mean) : null;
+  if (scaledSketch && scaledSketch.length !== curve.length) {
+    scaledSketch = Array.from(resampleJS(scaledSketch, curve.length));
+  }
 
   // Build day labels: "Day 1", "Day 10", ... sparse to avoid clutter
   const labels = curve.map((_, i) => (i % 10 === 0 || i === curve.length - 1) ? `Day ${i + 1}` : '');
@@ -501,10 +513,10 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
     },
   ];
 
-  if (sketchOverlay) {
+  if (scaledSketch) {
     datasets.push({
       label: 'Your sketch',
-      data: Array.from(sketchOverlay),
+      data: Array.from(scaledSketch),
       borderColor: '#FF3D00', // Vermillion accent overlay
       backgroundColor: 'transparent',
       borderWidth: 2,
@@ -577,7 +589,7 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
           },
           title: {
             display: true,
-            text: 'z-score',
+            text: 'Price (₹)',
             color: 'rgba(255,255,255,0.25)',
             font: { size: 9 },
           },

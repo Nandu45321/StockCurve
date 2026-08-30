@@ -81,6 +81,7 @@ class Filters(BaseModel):
     mid: bool = True
     small: bool = False
     window_days: int = 60
+    smoothing: float = 2.0
 
 
 class SearchRequest(BaseModel):
