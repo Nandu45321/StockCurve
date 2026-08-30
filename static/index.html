@@ -8,6 +8,8 @@
   <!-- Pico CSS — dark theme, semantic markup baseline -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
   <link rel="stylesheet" href="/static/style.css" />
+  <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -369,13 +371,19 @@ function hideProgress() {
   document.getElementById('progress-panel').setAttribute('hidden', '');
 }
 
+// Track Chart.js instances so we can destroy them before re-rendering
+const _charts = [];
+
 function clearResults() {
+  // Destroy all existing Chart.js instances to free memory and avoid canvas reuse errors
+  _charts.forEach(c => c.destroy());
+  _charts.length = 0;
   document.getElementById('results-placeholder').style.display = '';
   document.getElementById('results-grid').innerHTML = '';
 }
 
 // ---------------------------------------------------------------
-// Result rendering + mini charts
+// Result rendering + Chart.js charts
 // ---------------------------------------------------------------
 function renderResults(results) {
   document.getElementById('results-placeholder').style.display = 'none';
@@ -409,8 +417,9 @@ function renderResults(results) {
         </div>
       </header>
 
-      <canvas class="mini-chart" id="mini-${idx}" width="600" height="200"
-              aria-label="Price curve for ${r.symbol}"></canvas>
+      <div class="chart-container">
+        <canvas id="mini-${idx}" aria-label="Price curve for ${r.symbol}"></canvas>
+      </div>
 
       <footer class="result-card-footer">
         <small>📅 ${r.date_end}</small>
@@ -420,51 +429,123 @@ function renderResults(results) {
     `;
 
     grid.appendChild(article);
-    drawMiniChart(`mini-${idx}`, r.curve, sketchOverlay);
+    // Draw after DOM insertion so Chart.js can measure the canvas
+    requestAnimationFrame(() => drawMiniChart(`mini-${idx}`, r, sketchOverlay));
   });
 }
 
-function drawMiniChart(canvasId, curve, sketchOverlay) {
-  /** Render stock curve (green) + optional sketch overlay (purple dashed). */
-  const mc   = document.getElementById(canvasId);
-  if (!mc) return;
-  const mctx = mc.getContext('2d');
-  const W    = mc.width, H = mc.height;
-  const pad  = 12;
+function drawMiniChart(canvasId, result, sketchOverlay) {
+  /**
+   * Render a Chart.js line chart for a result card.
+   * Green solid = stock curve. Purple dashed = user's sketch overlay.
+   */
+  const el = document.getElementById(canvasId);
+  if (!el) return;
 
-  mctx.fillStyle = '#050608';
-  mctx.fillRect(0, 0, W, H);
+  const curve = result.curve;
 
-  // Draw a subtle grid
-  mctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  mctx.lineWidth   = 1;
-  for (let i = 1; i < 4; i++) {
-    const y = pad + (i / 4) * (H - 2 * pad);
-    mctx.beginPath(); mctx.moveTo(pad, y); mctx.lineTo(W - pad, y); mctx.stroke();
-  }
+  // Build day labels: "Day 1", "Day 10", ... sparse to avoid clutter
+  const labels = curve.map((_, i) => (i % 10 === 0 || i === curve.length - 1) ? `Day ${i + 1}` : '');
 
-  function plotLine(data, color, dashed) {
-    const minV  = Math.min(...data);
-    const maxV  = Math.max(...data);
-    const range = (maxV - minV) || 1;
-    mctx.beginPath();
-    mctx.strokeStyle = color;
-    mctx.lineWidth   = dashed ? 1.5 : 2;
-    mctx.lineJoin    = 'round';
-    mctx.lineCap     = 'round';
-    if (dashed) mctx.setLineDash([5, 5]);
-    else        mctx.setLineDash([]);
-    data.forEach((v, i) => {
-      const x = pad + (i / (data.length - 1)) * (W - 2 * pad);
-      const y = (H - pad) - ((v - minV) / range) * (H - 2 * pad);
-      i === 0 ? mctx.moveTo(x, y) : mctx.lineTo(x, y);
+  const datasets = [
+    {
+      label: result.symbol,
+      data: curve,
+      borderColor: '#4ade80',
+      backgroundColor: 'rgba(74,222,128,0.08)',
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHoverBackgroundColor: '#4ade80',
+      tension: 0.3,
+      fill: true,
+    },
+  ];
+
+  if (sketchOverlay) {
+    datasets.push({
+      label: 'Your sketch',
+      data: Array.from(sketchOverlay),
+      borderColor: '#a78bfa',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      pointHoverBackgroundColor: '#a78bfa',
+      tension: 0.3,
+      fill: false,
     });
-    mctx.stroke();
-    mctx.setLineDash([]);
   }
 
-  plotLine(curve, '#4ade80', false);
-  if (sketchOverlay) plotLine(sketchOverlay, '#a78bfa', true);
+  const chart = new Chart(el, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      animation: { duration: 400, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: 'rgba(255,255,255,0.6)',
+            font: { size: 11, family: 'Inter, system-ui, sans-serif' },
+            boxWidth: 16,
+            boxHeight: 2,
+            padding: 8,
+            usePointStyle: true,
+            pointStyleWidth: 16,
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(18,20,26,0.95)',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: 'rgba(255,255,255,0.85)',
+          bodyColor: 'rgba(255,255,255,0.65)',
+          padding: 10,
+          callbacks: {
+            title: (items) => items[0].label || '',
+            label: (item) => ` ${item.dataset.label}: ${item.parsed.y.toFixed(3)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+          border: { color: 'rgba(255,255,255,0.1)' },
+          ticks: {
+            color: 'rgba(255,255,255,0.35)',
+            font: { size: 10 },
+            maxRotation: 0,
+            autoSkip: false,
+          },
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+          border: { color: 'rgba(255,255,255,0.1)', dash: [3, 3] },
+          ticks: {
+            color: 'rgba(255,255,255,0.35)',
+            font: { size: 10 },
+            maxTicksLimit: 5,
+            callback: (v) => v.toFixed(1),
+          },
+          title: {
+            display: true,
+            text: 'z-score',
+            color: 'rgba(255,255,255,0.25)',
+            font: { size: 9 },
+          },
+        },
+      },
+    },
+  });
+
+  _charts.push(chart);
 }
 </script>
 </body>

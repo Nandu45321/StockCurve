@@ -265,7 +265,7 @@
   /* Pico <article> gives border, padding, border-radius */
   overflow: hidden;
   animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
-  padding-bottom: 0;   /* chart flush to bottom */
+  /* chart-container handles its own bottom padding */
 }
 
 @keyframes slideIn {
@@ -349,14 +349,10 @@
 .score-fo { color: var(--green)  !important; }
 
 /* --------------------------------------------------------------------------
-   Mini charts — square-ish, full card width, flush bottom
+   Chart.js result charts
    -------------------------------------------------------------------------- */
-.mini-chart {
-  display: block;
-  width: 100%;
-  /* aspect-ratio keeps it squarish regardless of card width */
-  aspect-ratio: 3 / 2;
-  height: auto;
+.chart-container {
+  position: relative;
   background: var(--canvas-bg);
   border-top: 1px solid var(--pico-muted-border-color);
 
@@ -364,4 +360,8 @@
   margin-left:  calc(-1 * var(--pico-block-spacing-horizontal, 1rem));
   margin-right: calc(-1 * var(--pico-block-spacing-horizontal, 1rem));
   width: calc(100% + 2 * var(--pico-block-spacing-horizontal, 1rem));
+
+  /* Give Chart.js a fixed height to render into */
+  height: 200px;
+  padding: 0.5rem 0.75rem 0.4rem;
 }
