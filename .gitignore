@@ -1,0 +1,16 @@
+# data — too large for git
+data/windows.npy
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# env
+.env
+
+# os
+.DS_Store
