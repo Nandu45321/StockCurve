@@ -25,7 +25,7 @@ Top 5 results
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt  # used python 3.10.10
 python prepare_data.py      # run once — downloads data, builds windows.npy
 python main.py              # start server
 # open http://localhost:8000

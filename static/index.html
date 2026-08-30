@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shazam for Stocks — NSE/BSE Shape Search Engine</title>
+  <meta name="description" content="Draw a stock chart shape and find matching NSE/BSE stocks using pattern recognition. Like Shazam but for Indian equity markets." />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-badge">
+      <span>⚡</span> NSE &amp; BSE · Shape Search
+    </div>
+    <h1>Shazam for Stocks</h1>
+    <p>Draw a price curve. Find Indian stocks that look just like it.</p>
+  </header>
+
+  <!-- Draw canvas card -->
+  <section class="card" aria-label="Drawing canvas">
+    <div class="card-label">Draw your pattern</div>
+
+    <div class="canvas-wrapper" id="canvas-wrapper">
+      <canvas id="sketch-canvas" width="850" height="200"
+              role="img" aria-label="Stock pattern drawing canvas"></canvas>
+      <div class="canvas-hint" id="canvas-hint">
+        <span class="canvas-hint-icon">✏️</span>
+        Click and drag to draw a price curve
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-row">
+      <span class="filter-group-label">Cap</span>
+
+      <label class="cap-toggle active-large" id="toggle-large" title="Large cap stocks">
+        <input type="checkbox" id="cap-large" checked /> Large
+      </label>
+      <label class="cap-toggle active-mid" id="toggle-mid" title="Mid cap stocks">
+        <input type="checkbox" id="cap-mid" checked /> Mid
+      </label>
+      <label class="cap-toggle" id="toggle-small" title="Small cap stocks">
+        <input type="checkbox" id="cap-small" /> Small
+      </label>
+
+      <span class="filter-group-label" style="margin-left:0.5rem">Window</span>
+      <select class="window-select" id="window-days" title="Window length in trading days">
+        <option value="30">30 days</option>
+        <option value="60" selected>60 days</option>
+        <option value="90">90 days</option>
+      </select>
+
+      <button class="btn-clear" id="btn-clear" title="Clear canvas">Clear</button>
+    </div>
+  </section>
+
+  <!-- Progress panel -->
+  <section class="progress-panel" id="progress-panel" aria-live="polite" aria-label="Search progress">
+    <div class="progress-title">Search progress</div>
+    <ul class="stage-list">
+      <li class="stage-item" id="stage-1" data-state="pending">
+        <span class="stage-icon"></span>
+        <span class="stage-label">Hard filters</span>
+        <span class="stage-count" id="count-1">—</span>
+        <span class="stage-status" id="status-1"></span>
+      </li>
+      <li class="stage-item" id="stage-2" data-state="pending">
+        <span class="stage-icon"></span>
+        <span class="stage-label">Smoothed Euclidean</span>
+        <span class="stage-count" id="count-2">—</span>
+        <span class="stage-status" id="status-2"></span>
+      </li>
+      <li class="stage-item" id="stage-3" data-state="pending">
+        <span class="stage-icon"></span>
+        <span class="stage-label">Fourier matching</span>
+        <span class="stage-count" id="count-3">—</span>
+        <span class="stage-status" id="status-3"></span>
+      </li>
+      <li class="stage-item" id="stage-4" data-state="pending">
+        <span class="stage-icon"></span>
+        <span class="stage-label">Convergence &amp; blend</span>
+        <span class="stage-count" id="count-4">—</span>
+        <span class="stage-status" id="status-4"></span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Results section -->
+  <section class="results-section" id="results-section" aria-label="Search results">
+    <div class="results-header">Top matches</div>
+    <div class="results-grid" id="results-grid"></div>
+  </section>
+
+</div><!-- /app-wrapper -->
+
+<script>
+/* ============================================================
+   Shazam for Stocks — frontend JS
+   Rules (from AGENTS.md):
+   - Canvas drawing, fetch/SSE handling, rendering result charts ONLY
+   - Zero computation except resampling canvas points to 50 values
+   - No frameworks, no build steps
+   ============================================================ */
+
+// ---------------------------------------------------------------
+// Canvas setup
+// ---------------------------------------------------------------
+const canvas   = document.getElementById('sketch-canvas');
+const ctx      = canvas.getContext('2d');
+const wrapper  = document.getElementById('canvas-wrapper');
+const hint     = document.getElementById('canvas-hint');
+
+// Scale canvas to its CSS size for sharp rendering on HiDPI screens
+function scaleCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr  = window.devicePixelRatio || 1;
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  // Store logical size for coordinate math
+  canvas._logicalWidth  = rect.width;
+  canvas._logicalHeight = rect.height;
+}
+scaleCanvas();
+window.addEventListener('resize', () => { scaleCanvas(); redrawPoints(); });
+
+// Drawing state
+let isDrawing = false;
+let points    = [];   // {x, y} in logical px
+
+function initCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+  ctx.fillStyle = '#050608';
+  ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+}
+
+function redrawPoints() {
+  initCanvas();
+  if (points.length < 2) return;
+  ctx.beginPath();
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.stroke();
+}
+
+initCanvas();
+
+// ---------------------------------------------------------------
+// Mouse / touch events
+// ---------------------------------------------------------------
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src  = e.touches ? e.touches[0] : e;
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+}
+
+canvas.addEventListener('mousedown',  startDraw);
+canvas.addEventListener('touchstart', startDraw, { passive: true });
+canvas.addEventListener('mousemove',  doDraw);
+canvas.addEventListener('touchmove',  doDraw,    { passive: true });
+canvas.addEventListener('mouseup',    endDraw);
+canvas.addEventListener('touchend',   endDraw);
+canvas.addEventListener('mouseleave', endDraw);
+
+function startDraw(e) {
+  isDrawing = true;
+  points    = [];
+  initCanvas();
+  wrapper.classList.add('drawing');
+  hint.classList.add('hidden');
+  const pos = getPos(e);
+  points.push(pos);
+  ctx.beginPath();
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  ctx.moveTo(pos.x, pos.y);
+}
+
+function doDraw(e) {
+  if (!isDrawing) return;
+  const pos = getPos(e);
+  points.push(pos);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+}
+
+function endDraw() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  wrapper.classList.remove('drawing');
+  if (points.length > 10) {
+    prepareAndSend();
+  }
+}
+
+// ---------------------------------------------------------------
+// Clear button
+// ---------------------------------------------------------------
+document.getElementById('btn-clear').addEventListener('click', () => {
+  points = [];
+  initCanvas();
+  hint.classList.remove('hidden');
+  hideProgress();
+  hideResults();
+});
+
+// ---------------------------------------------------------------
+// Cap toggle chips
+// ---------------------------------------------------------------
+['large', 'mid', 'small'].forEach(cap => {
+  const lbl = document.getElementById(`toggle-${cap}`);
+  const cb  = document.getElementById(`cap-${cap}`);
+  cb.addEventListener('change', () => {
+    if (cb.checked) {
+      lbl.classList.add(`active-${cap}`);
+    } else {
+      lbl.classList.remove(`active-${cap}`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------
+// Resampling (50 points via linear interpolation — done in JS per AGENTS.md)
+// ---------------------------------------------------------------
+function resampleJS(yVals, target) {
+  /**
+   * Linearly interpolate yVals to `target` evenly-spaced points.
+   * This is the ONLY computation the frontend is allowed to do.
+   */
+  const n   = yVals.length;
+  const out = new Float64Array(target);
+  for (let i = 0; i < target; i++) {
+    const t     = i / (target - 1);
+    const srcF  = t * (n - 1);
+    const lo    = Math.floor(srcF);
+    const hi    = Math.min(lo + 1, n - 1);
+    const frac  = srcF - lo;
+    out[i] = yVals[lo] * (1 - frac) + yVals[hi] * frac;
+  }
+  return out;
+}
+
+function znormJS(arr) {
+  /** Z-normalize to zero mean, unit std. */
+  let sum = 0, sumSq = 0;
+  for (const v of arr) { sum += v; sumSq += v * v; }
+  const mean = sum / arr.length;
+  const std  = Math.sqrt(sumSq / arr.length - mean * mean) + 1e-8;
+  return Array.from(arr).map(v => (v - mean) / std);
+}
+
+// ---------------------------------------------------------------
+// prepareAndSend — extract y-vals → resample → z-norm → POST
+// ---------------------------------------------------------------
+async function prepareAndSend() {
+  if (points.length < 10) return;
+
+  // Extract y-values (flip: canvas y=0 is top, stock price y=0 is bottom)
+  const h    = canvas._logicalHeight || canvas.getBoundingClientRect().height;
+  const yRaw = points.map(p => h - p.y);
+
+  // Resample to 50 points
+  const y50 = resampleJS(yRaw, 50);
+
+  // Z-normalize
+  const sketch = znormJS(y50);
+
+  // Read filter state
+  const filters = {
+    large:       document.getElementById('cap-large').checked,
+    mid:         document.getElementById('cap-mid').checked,
+    small:       document.getElementById('cap-small').checked,
+    window_days: parseInt(document.getElementById('window-days').value, 10),
+  };
+
+  // Reset UI
+  resetProgress();
+  showProgress();
+  hideResults();
+
+  try {
+    // POST to /search → get search_id
+    const res = await fetch('/search', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sketch, filters }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('POST /search failed:', err);
+      return;
+    }
+
+    const { search_id } = await res.json();
+
+    // Open SSE stream
+    openSSEStream(search_id);
+
+  } catch (err) {
+    console.error('Search failed:', err);
+  }
+}
+
+// ---------------------------------------------------------------
+// SSE streaming
+// ---------------------------------------------------------------
+function openSSEStream(searchId) {
+  const es = new EventSource(`/search-stream/${searchId}`);
+
+  es.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    handleStageEvent(event);
+    if (event.stage >= 4 || event.stage === -1) {
+      es.close();
+    }
+  };
+
+  es.onerror = (e) => {
+    console.error('SSE error:', e);
+    es.close();
+  };
+}
+
+// ---------------------------------------------------------------
+// Progress UI updates
+// ---------------------------------------------------------------
+const STAGE_LABELS = {
+  1: 'Hard filters',
+  2: 'Smoothed Euclidean',
+  3: 'Fourier matching',
+  4: 'Convergence & blend',
+};
+
+function resetProgress() {
+  for (let s = 1; s <= 4; s++) {
+    const item = document.getElementById(`stage-${s}`);
+    item.dataset.state = 'pending';
+    document.getElementById(`count-${s}`).textContent = '—';
+    document.getElementById(`status-${s}`).innerHTML  = '';
+  }
+}
+
+function handleStageEvent(event) {
+  if (event.stage === -1) {
+    console.error('Pipeline error:', event.message);
+    return;
+  }
+
+  const s    = event.stage;
+  const item = document.getElementById(`stage-${s}`);
+  if (!item) return;
+
+  item.dataset.state = 'done';
+
+  if (s < 4) {
+    document.getElementById(`count-${s}`).textContent =
+      `${event.total} → ${event.remaining}`;
+  } else {
+    document.getElementById(`count-${s}`).textContent =
+      `top ${event.remaining}`;
+  }
+  document.getElementById(`status-${s}`).textContent = '✓';
+
+  // Mark next stage as running
+  if (s < 4) {
+    const next = document.getElementById(`stage-${s + 1}`);
+    if (next) next.dataset.state = 'running';
+    document.getElementById(`status-${s + 1}`).innerHTML =
+      '<span class="spinner"></span>';
+  }
+
+  // Render results on final stage
+  if (s === 4 && event.results && event.results.length > 0) {
+    renderResults(event.results);
+  }
+}
+
+function showProgress() {
+  document.getElementById('progress-panel').classList.add('visible');
+  // Mark stage 1 as running immediately
+  const s1 = document.getElementById('stage-1');
+  s1.dataset.state = 'running';
+  document.getElementById('status-1').innerHTML = '<span class="spinner"></span>';
+}
+
+function hideProgress() {
+  document.getElementById('progress-panel').classList.remove('visible');
+}
+
+function hideResults() {
+  document.getElementById('results-section').classList.remove('visible');
+  document.getElementById('results-grid').innerHTML = '';
+}
+
+// ---------------------------------------------------------------
+// Result rendering + mini charts
+// ---------------------------------------------------------------
+function renderResults(results) {
+  const grid = document.getElementById('results-grid');
+  grid.innerHTML = '';
+
+  // Capture current sketch y-values (already z-normed, for overlay)
+  const h    = canvas._logicalHeight || canvas.getBoundingClientRect().height;
+  const yRaw = points.map(p => h - p.y);
+  const sketchOverlay = points.length > 10
+    ? znormJS(resampleJS(yRaw, 50))
+    : null;
+
+  results.forEach((r, idx) => {
+    // Score as percentage (invert distance: 0 dist = 100%, higher dist = lower %)
+    // We display a normalised match quality: map score to 0–100 where lower dist = higher %
+    // Simple approach: clamp and invert relative to a max expected distance of 10
+    const matchPct = Math.max(0, Math.round((1 - Math.min(r.score / 10, 1)) * 100));
+    const euPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Euclidean / 10, 1)) * 100));
+    const foPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Fourier   / 10, 1)) * 100));
+
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.style.animationDelay = `${idx * 0.07}s`;
+
+    card.innerHTML = `
+      <div>
+        <div class="result-rank">#${idx + 1}</div>
+        <div class="result-symbol">${r.symbol}</div>
+        <div class="result-name">${r.name}</div>
+        <div class="result-meta">
+          <span class="result-tag">📅 ${r.date_end}</span>
+        </div>
+        <div class="result-scores">
+          <span class="score-eu">Euclidean ${euPct}%</span>
+          <span>·</span>
+          <span class="score-fo">Fourier ${foPct}%</span>
+        </div>
+      </div>
+      <div class="result-score-badge">
+        <div class="score-label">Match</div>
+        <div class="score-value">${matchPct}<span class="score-unit">%</span></div>
+      </div>
+      <canvas class="mini-chart" id="mini-${idx}" width="800" height="140"
+              aria-label="Price curve for ${r.symbol}"></canvas>
+    `;
+
+    grid.appendChild(card);
+
+    // Draw mini chart after DOM insertion
+    drawMiniChart(`mini-${idx}`, r.curve, sketchOverlay);
+  });
+
+  document.getElementById('results-section').classList.add('visible');
+}
+
+function drawMiniChart(canvasId, curve, sketchOverlay) {
+  /** Render stock curve (green) + optional sketch overlay (purple dashed). */
+  const mc  = document.getElementById(canvasId);
+  if (!mc) return;
+  const mctx = mc.getContext('2d');
+  const W = mc.width, H = mc.height;
+  const pad = 10;
+
+  mctx.fillStyle = '#050608';
+  mctx.fillRect(0, 0, W, H);
+
+  function plotLine(data, color, dashed) {
+    const minV = Math.min(...data);
+    const maxV = Math.max(...data);
+    const range = (maxV - minV) || 1;
+
+    mctx.beginPath();
+    mctx.strokeStyle = color;
+    mctx.lineWidth   = 2;
+    mctx.lineJoin    = 'round';
+    mctx.lineCap     = 'round';
+    if (dashed) mctx.setLineDash([4, 4]);
+    else        mctx.setLineDash([]);
+
+    data.forEach((v, i) => {
+      const x = pad + (i / (data.length - 1)) * (W - 2 * pad);
+      const y = (H - pad) - ((v - minV) / range) * (H - 2 * pad);
+      i === 0 ? mctx.moveTo(x, y) : mctx.lineTo(x, y);
+    });
+    mctx.stroke();
+    mctx.setLineDash([]);
+  }
+
+  // Stock curve — green
+  plotLine(curve, '#4ade80', false);
+
+  // Sketch overlay — purple dashed (normalize to same visual range as curve)
+  if (sketchOverlay) {
+    plotLine(sketchOverlay, '#a78bfa', true);
+  }
+}
+</script>
+</body>
+</html>

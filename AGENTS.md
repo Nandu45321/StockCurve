@@ -12,6 +12,8 @@ paper comparing approaches.
 
 ---
 
+
+
 ## Agent Rules (Read Before Every Task)
 
 1. **Never break the plugin interface.** Every matcher inherits `BaseMatcher`.
@@ -50,6 +52,13 @@ paper comparing approaches.
     lines. This is a research prototype, not production software.
 
 ---
+UI rules:
+- Use Pico CSS via CDN for base styling. No other CSS framework.
+- Write semantic HTML — use <main>, <section>, <article>, <header> properly.
+- Custom CSS in style.css only for: canvas styling, result cards, 
+  progress indicators, mini charts. Nothing else.
+- Dark theme: add data-theme="dark" to <html> tag.
+- Mobile is not a priority. Optimize for desktop 1080p+.
 
 ## Project Structure
 
