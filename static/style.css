@@ -86,24 +86,35 @@ ul, ol { list-style: none; }
 @media (min-width: 1024px) { .container { padding: 48px 64px; } }
 
 .site-header {
-  padding: 20px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--accent);
-  margin-bottom: 1rem;
-  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.site-header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, var(--text-5xl));
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
 }
 
 .subtitle {
-  font-size: var(--text-lg);
   color: var(--muted-fg);
+  font-size: var(--text-base);
   max-width: 600px;
 }
 
@@ -236,7 +247,7 @@ ul, ol { list-style: none; }
 .canvas-container {
   position: relative;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 2px solid var(--muted-fg);
   aspect-ratio: 8 / 9;
   width: 100%;
   margin-bottom: 2rem;
@@ -245,9 +256,11 @@ ul, ol { list-style: none; }
 }
 .canvas-container.drawing { border-color: var(--accent); }
 #scratch-canvas {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none; /* Prevent scroll on touch */
 }
 .canvas-hint {
   position: absolute;

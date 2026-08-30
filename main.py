@@ -104,7 +104,14 @@ class SearchResponse(BaseModel):
 async def root() -> HTMLResponse:
     """Serve the main index.html."""
     with open(os.path.join("static", "index.html"), encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+        return HTMLResponse(
+            content=f.read(),
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+        )
 
 
 @app.post("/search", response_model=SearchResponse)

@@ -135,7 +135,7 @@ def convergence(
         })
 
     results.sort(key=lambda x: x["score"])
-    return results[:5]
+    return results[:10]
 
 
 # ---------------------------------------------------------------------------
@@ -212,19 +212,19 @@ async def run_pipeline(
     }
 
     # ------------------------------------------------------------------
-    # Convergence layer → top 5
+    # Convergence layer
     # ------------------------------------------------------------------
     sharp = sharpness(sketch)
     alpha = sigmoid(sharp * 5)
 
-    top5 = convergence(candidates, sketch, meta_map)
+    top10 = convergence(candidates, sketch, meta_map)
 
     # Research log (stdout as required by AGENTS.md)
-    euclidean_top5 = [c["symbol"] for c in sorted(
-        candidates, key=lambda x: x.get("euclidean_score", 9e9))[:5]]
-    fourier_top5 = [c["symbol"] for c in sorted(
-        candidates, key=lambda x: x.get("fourier_score", 9e9))[:5]]
-    final_top5 = [r["symbol"] for r in top5]
+    euclidean_top10 = [c["symbol"] for c in sorted(
+        candidates, key=lambda x: x.get("euclidean_score", 9e9))[:10]]
+    fourier_top10 = [c["symbol"] for c in sorted(
+        candidates, key=lambda x: x.get("fourier_score", 9e9))[:10]]
+    final_top10 = [r["symbol"] for r in top10]
 
     research_log = {
         "search_id": search_id,
@@ -233,17 +233,17 @@ async def run_pipeline(
         "stage1_count": stage1_count,
         "stage2_count": stage2_count,
         "stage3_count": stage3_count,
-        "euclidean_top5": euclidean_top5,
-        "fourier_top5": fourier_top5,
-        "final_top5": final_top5,
+        "euclidean_top": euclidean_top10,
+        "fourier_top": fourier_top10,
+        "final_top": final_top10,
     }
-    print(f"[RESEARCH] {json.dumps(research_log)}", flush=True)
+    print(json.dumps(research_log))
 
     yield {
         "stage": 4,
-        "label": "Final results",
+        "label": "Convergence",
         "status": "done",
-        "remaining": len(top5),
+        "remaining": len(top10),
         "total": total,
-        "results": top5,
+        "results": top10,
     }
