@@ -5,23 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shazam for Stocks — NSE/BSE Shape Search Engine</title>
   <meta name="description" content="Draw a stock chart shape and find matching NSE/BSE stocks using pattern recognition. Like Shazam but for Indian equity markets." />
-  <!-- Pico CSS — dark theme, semantic markup baseline -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <!-- Google Fonts for Bold Typography Design System -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="/static/style.css" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-  <header class="container-fluid">
-    <hgroup>
-      <p class="site-eyebrow">⚡ NSE &amp; BSE · Shape Search</p>
+  <header class="site-header">
+    <div class="container">
+      <hgroup>
+        <span class="eyebrow">⚡ NSE &amp; BSE · Shape Search</span>
       <h1>Shazam for Stocks</h1>
-      <p>Draw a price curve. Find Indian stocks that look just like it.</p>
-    </hgroup>
+        <p class="subtitle">Draw a price curve. Find Indian stocks that look just like it.</p>
+      </hgroup>
+    </div>
   </header>
 
-  <main class="container-fluid">
+  <main class="container">
     <div class="app-grid">
 
       <!-- ═══════════════════════════════════════════
@@ -41,31 +46,31 @@
           </div>
 
           <!-- Filters -->
-          <div class="filter-bar" role="group" aria-label="Search filters">
+          <div class="controls-bar" role="group" aria-label="Search filters">
 
-            <fieldset class="cap-fieldset">
-              <legend>Cap</legend>
-              <label class="cap-toggle active-large" id="toggle-large">
+            <div class="controls-group cap-toggles">
+              <label class="cap-toggle active" id="toggle-large">
                 <input type="checkbox" id="cap-large" checked /> Large
               </label>
-              <label class="cap-toggle active-mid" id="toggle-mid">
+              <label class="cap-toggle active" id="toggle-mid">
                 <input type="checkbox" id="cap-mid" checked /> Mid
               </label>
               <label class="cap-toggle" id="toggle-small">
                 <input type="checkbox" id="cap-small" /> Small
               </label>
-            </fieldset>
+            </div>
 
-            <label for="window-days" class="window-label">
-              Window
-              <select id="window-days">
+            <div class="controls-group">
+              <label for="window-days" class="input-label">
+                Window
+              </label>
+              <select id="window-days" class="select-sharp">
                 <option value="30">30 d</option>
                 <option value="60" selected>60 d</option>
                 <option value="90">90 d</option>
               </select>
-            </label>
-
-            <button id="btn-clear" class="secondary outline">Clear</button>
+              <button id="btn-clear" class="btn btn-outline">Clear</button>
+            </div>
 
           </div>
         </section>
@@ -114,7 +119,7 @@
           <p>Draw a curve on the left to find matching stocks.</p>
         </div>
 
-        <div id="results-grid" role="list"></div>
+        <div id="results-grid" class="results-grid" role="list"></div>
       </section>
 
     </div><!-- /app-grid -->
@@ -246,8 +251,8 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   const lbl = document.getElementById(`toggle-${cap}`);
   const cb  = document.getElementById(`cap-${cap}`);
   cb.addEventListener('change', () => {
-    if (cb.checked) lbl.classList.add(`active-${cap}`);
-    else            lbl.classList.remove(`active-${cap}`);
+    if (cb.checked) lbl.classList.add('active');
+    else            lbl.classList.remove('active');
   });
 });
 
@@ -405,15 +410,15 @@ function renderResults(results) {
     article.style.animationDelay = `${idx * 0.07}s`;
 
     article.innerHTML = `
-      <header class="result-card-header">
-        <div class="result-card-meta">
-          <small class="result-rank">#${idx + 1}</small>
+      <header class="result-header">
+        <div class="result-meta">
+          <span class="result-rank">#${idx + 1}</span>
           <strong class="result-symbol">${r.symbol}</strong>
           <span class="result-name">${r.name}</span>
         </div>
-        <div class="result-score-badge">
-          <small>Match</small>
-          <strong class="score-value">${matchPct}<span class="score-unit">%</span></strong>
+        <div class="result-score">
+          <span class="score-label">Match</span>
+          <div class="score-value">${matchPct}<span>%</span></div>
         </div>
       </header>
 
@@ -421,10 +426,10 @@ function renderResults(results) {
         <canvas id="mini-${idx}" aria-label="Price curve for ${r.symbol}"></canvas>
       </div>
 
-      <footer class="result-card-footer">
-        <small>📅 ${r.date_end}</small>
-        <small class="score-eu">Euclidean ${euPct}%</small>
-        <small class="score-fo">Fourier ${foPct}%</small>
+      <footer class="result-footer">
+        <span>📅 ${r.date_end}</span>
+        <span class="score-eu">Euclidean ${euPct}%</span>
+        <span class="score-fo">Fourier ${foPct}%</span>
       </footer>
     `;
 
@@ -451,14 +456,14 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
     {
       label: result.symbol,
       data: curve,
-      borderColor: '#4ade80',
-      backgroundColor: 'rgba(74,222,128,0.08)',
+      borderColor: '#FAFAFA', // White stock curve
+      backgroundColor: 'transparent',
       borderWidth: 2,
       pointRadius: 0,
       pointHoverRadius: 4,
-      pointHoverBackgroundColor: '#4ade80',
+      pointHoverBackgroundColor: '#FAFAFA',
       tension: 0.3,
-      fill: true,
+      fill: false,
     },
   ];
 
@@ -466,13 +471,13 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
     datasets.push({
       label: 'Your sketch',
       data: Array.from(sketchOverlay),
-      borderColor: '#a78bfa',
+      borderColor: '#FF3D00', // Vermillion accent overlay
       backgroundColor: 'transparent',
-      borderWidth: 1.5,
-      borderDash: [5, 5],
+      borderWidth: 2,
+      borderDash: [4, 4],
       pointRadius: 0,
       pointHoverRadius: 3,
-      pointHoverBackgroundColor: '#a78bfa',
+      pointHoverBackgroundColor: '#FF3D00',
       tension: 0.3,
       fill: false,
     });
@@ -492,21 +497,23 @@ function drawMiniChart(canvasId, result, sketchOverlay) {
           position: 'top',
           align: 'end',
           labels: {
-            color: 'rgba(255,255,255,0.6)',
-            font: { size: 11, family: 'Inter, system-ui, sans-serif' },
-            boxWidth: 16,
+            color: '#737373', // muted-fg
+            font: { size: 11, family: '"JetBrains Mono", monospace' },
+            boxWidth: 12,
             boxHeight: 2,
             padding: 8,
             usePointStyle: true,
-            pointStyleWidth: 16,
+            pointStyleWidth: 12,
           },
         },
         tooltip: {
-          backgroundColor: 'rgba(18,20,26,0.95)',
-          borderColor: 'rgba(255,255,255,0.1)',
+          backgroundColor: '#0A0A0A',
+          borderColor: '#262626',
           borderWidth: 1,
-          titleColor: 'rgba(255,255,255,0.85)',
-          bodyColor: 'rgba(255,255,255,0.65)',
+          titleColor: '#FAFAFA',
+          bodyColor: '#737373',
+          titleFont: { family: '"JetBrains Mono", monospace' },
+          bodyFont: { family: '"JetBrains Mono", monospace' },
           padding: 10,
           callbacks: {
             title: (items) => items[0].label || '',
