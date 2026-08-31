@@ -59,6 +59,7 @@ UI rules:
   progress indicators, mini charts. Nothing else.
 - Dark theme: add data-theme="dark" to <html> tag.
 - Mobile is not a priority. Optimize for desktop 1080p+.
+- Do not use emojis, if wanted, ask the user for specific icons, else make your own if not    provided, I'll specify when needed
 
 ## Project Structure
 
