@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css?v=14" />
+  <link rel="stylesheet" href="/static/style.css?v=15" />
   <!-- PNG Favicon -->
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
@@ -48,58 +48,70 @@
           </div>
 
           <!-- Filters -->
-          <div class="controls-bar" role="group" aria-label="Search filters">
+          <div class="controls-panel" role="group" aria-label="Search configuration">
+            
+            <div class="controls-row">
+              <div class="control-block">
+                <span class="control-label">Market Cap</span>
+                <div class="cap-toggles">
+                  <label class="cap-toggle active" id="toggle-large">
+                    <input type="checkbox" id="cap-large" checked /> Large
+                  </label>
+                  <label class="cap-toggle active" id="toggle-mid">
+                    <input type="checkbox" id="cap-mid" checked /> Mid
+                  </label>
+                  <label class="cap-toggle" id="toggle-small">
+                    <input type="checkbox" id="cap-small" /> Small
+                  </label>
+                </div>
+              </div>
 
-            <div class="controls-group cap-toggles">
-              <label class="cap-toggle active" id="toggle-large">
-                <input type="checkbox" id="cap-large" checked /> Large
-              </label>
-              <label class="cap-toggle active" id="toggle-mid">
-                <input type="checkbox" id="cap-mid" checked /> Mid
-              </label>
-              <label class="cap-toggle" id="toggle-small">
-                <input type="checkbox" id="cap-small" /> Small
-              </label>
+              <div class="control-block">
+                <span class="control-label">Matchers</span>
+                <div class="matcher-toggles">
+                  <label class="matcher-toggle active" id="toggle-euclidean">
+                    <input type="checkbox" id="matcher-euclidean" checked /> Euclidean
+                  </label>
+                  <label class="matcher-toggle active" id="toggle-fourier">
+                    <input type="checkbox" id="matcher-fourier" checked /> Fourier
+                  </label>
+                  <label class="matcher-toggle active" id="toggle-nn">
+                    <input type="checkbox" id="matcher-nn" checked /> Neural Net
+                  </label>
+                </div>
+              </div>
             </div>
 
-            <span class="controls-separator">Matchers</span>
+            <div class="controls-row">
+              <div class="control-block">
+                <span class="control-label">Ranking Mode</span>
+                <div class="scoring-mode-group" role="radiogroup" aria-label="Ranking mode">
+                  <button class="scoring-mode-btn" id="score-btn-mae"      data-mode="mae"        aria-pressed="false">MAE</button>
+                  <button class="scoring-mode-btn active" id="score-btn-abs_var"  data-mode="abs_var"    aria-pressed="true" >MAE + |σ|</button>
+                  <button class="scoring-mode-btn" id="score-btn-signed_var" data-mode="signed_var" aria-pressed="false">MAE + σ</button>
+                </div>
+              </div>
 
-            <div class="controls-group matcher-toggles">
-              <label class="matcher-toggle active" id="toggle-euclidean">
-                <input type="checkbox" id="matcher-euclidean" checked /> Euclidean
-              </label>
-              <label class="matcher-toggle active" id="toggle-fourier">
-                <input type="checkbox" id="matcher-fourier" checked /> Fourier
-              </label>
-              <label class="matcher-toggle active" id="toggle-nn">
-                <input type="checkbox" id="matcher-nn" checked /> Neural Net
-              </label>
-            </div>
+              <div class="control-block" style="flex-grow: 1;">
+                <span class="control-label">Parameters</span>
+                <div class="params-group">
+                  <div class="param-item">
+                    <label for="window-days" class="input-label" style="margin:0">Window</label>
+                    <select id="window-days" class="select-sharp">
+                      <option value="30">30 d</option>
+                      <option value="60" selected>60 d</option>
+                      <option value="90">90 d</option>
+                    </select>
+                  </div>
+                  
+                  <div class="param-item">
+                    <label for="smoothing-slider" class="input-label" style="margin:0">Smoothing</label>
+                    <input type="range" id="smoothing-slider" min="0" max="10" step="0.5" value="2.0" style="width: 100px; accent-color: var(--accent);" />
+                  </div>
 
-            <span class="controls-separator">Ranking Mode</span>
-
-            <div class="controls-group scoring-mode-group" role="radiogroup" aria-label="Ranking mode">
-              <button class="scoring-mode-btn" id="score-btn-mae"      data-mode="mae"        aria-pressed="false">MAE</button>
-              <button class="scoring-mode-btn active" id="score-btn-abs_var"  data-mode="abs_var"    aria-pressed="true" >MAE + |σ|</button>
-              <button class="scoring-mode-btn" id="score-btn-signed_var" data-mode="signed_var" aria-pressed="false">MAE + σ</button>
-            </div>
-
-            <div class="controls-group">
-              <label for="window-days" class="input-label">
-                Window
-              </label>
-              <select id="window-days" class="select-sharp">
-                <option value="30">30 d</option>
-                <option value="60" selected>60 d</option>
-                <option value="90">90 d</option>
-              </select>
-              
-              <label for="smoothing-slider" class="input-label">
-                Smoothing
-              </label>
-              <input type="range" id="smoothing-slider" min="0" max="10" step="0.5" value="2.0" style="width: 100px; accent-color: var(--accent);" />
-
-              <button id="btn-clear" class="btn btn-outline">Clear</button>
+                  <button id="btn-clear" class="btn btn-outline" style="margin-left: auto;">Clear Sketch</button>
+                </div>
+              </div>
             </div>
 
           </div>

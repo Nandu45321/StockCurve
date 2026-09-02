@@ -276,26 +276,47 @@ ul, ol { list-style: none; }
 }
 .canvas-hint.hidden { opacity: 0; }
 
-.controls-bar {
+.controls-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 2rem;
   margin-bottom: 2rem;
   padding-bottom: 2rem;
   border-bottom: 1px solid var(--border);
 }
-@media (min-width: 640px) {
-  .controls-bar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-.controls-group {
+
+.controls-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  gap: 2.5rem;
+  align-items: flex-start;
+}
+
+.control-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.control-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-fg);
+}
+
+.params-group {
+  display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
+  align-items: center;
+}
+
+.param-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Progress Panel */
@@ -495,18 +516,6 @@ ul, ol { list-style: none; }
 .matcher-toggle.active { color: var(--fg); }
 .matcher-toggle.active::after { transform: scaleX(1); }
 
-/* Separator label in controls bar */
-.controls-separator {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted-fg);
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
-  width: 100%;
-  margin-top: 0.5rem;
-}
 
 /* Scoring mode 3-way toggle */
 .scoring-mode-group {
