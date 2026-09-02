@@ -5,3 +5,5 @@ scipy
 yfinance
 pandas
 python-multipart
+torch
+matplotlib

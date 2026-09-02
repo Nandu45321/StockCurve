@@ -421,6 +421,13 @@ ul, ol { list-style: none; }
   color: var(--accent);
   line-height: 1;
 }
+.score-mae {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-fg);
+  margin-top: 0.25rem;
+  text-align: right;
+}
 
 .chart-container {
   aspect-ratio: 16 / 9;
@@ -448,5 +455,100 @@ ul, ol { list-style: none; }
 .result-footer span { color: var(--muted-fg); }
 .score-eu { color: var(--fg) !important; }
 .score-fo { color: var(--fg) !important; }
+.score-nn { color: var(--fg) !important; }
+
 
 .hidden { display: none !important; }
+
+/* --------------------------------------------------------------------------
+   Matcher Toggles (left panel — identical look to cap-toggles)
+   -------------------------------------------------------------------------- */
+.matcher-toggles {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.matcher-toggle {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-fg);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  transition: color 150ms;
+}
+.matcher-toggle input[type="checkbox"] { display: none; }
+.matcher-toggle::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transition: transform 150ms cubic-bezier(0.25, 0, 0, 1);
+  transform-origin: left;
+}
+.matcher-toggle:hover { color: var(--fg); }
+.matcher-toggle.active { color: var(--fg); }
+.matcher-toggle.active::after { transform: scaleX(1); }
+
+/* Separator label in controls bar */
+.controls-separator {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-fg);
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Results Tab Bar
+   -------------------------------------------------------------------------- */
+.results-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.results-tab {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-fg);
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 150ms, border-color 150ms;
+  white-space: nowrap;
+}
+.results-tab:hover { color: var(--fg); }
+.results-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+/* Tab panels */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Disabled / loading state shown in a tab panel */
+.tab-state-msg {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--muted-fg);
+  padding: 2rem 0;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+

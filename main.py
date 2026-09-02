@@ -63,6 +63,19 @@ def load_data() -> None:
 load_data()
 
 # ---------------------------------------------------------------------------
+# Optional: Neural Net matcher (requires data/siamese.pt from train.py)
+# ---------------------------------------------------------------------------
+
+try:
+    from matchers.nn import NeuralMatcher as _NeuralMatcher
+    _neural_matcher = _NeuralMatcher()
+    print("[INFO] Neural Net matcher loaded from data/siamese.pt")
+except FileNotFoundError as _e:
+    _neural_matcher = None
+    print(f"[WARN] NN matcher not loaded — run train.py first  ({_e})")
+
+
+# ---------------------------------------------------------------------------
 # In-memory search result store (search_id -> pipeline args)
 # ---------------------------------------------------------------------------
 
@@ -82,6 +95,7 @@ class Filters(BaseModel):
     small: bool = False
     window_days: int = 60
     smoothing: float = 2.0
+    matchers: list[str] = ["Euclidean", "Fourier", "Neural Net"]
 
 
 class SearchRequest(BaseModel):

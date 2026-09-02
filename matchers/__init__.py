@@ -7,12 +7,16 @@ then append an instance to MATCHERS. Never touch pipeline.py to add a matcher.
 
 from .euclidean import EuclideanMatcher
 from .fourier import FourierMatcher
-from .nn import NNMatcher
 
 # Registered matchers used by the pipeline (in stage order)
-# NNMatcher is listed but will raise NotImplementedError until implemented.
 MATCHERS = [
     EuclideanMatcher(),
     FourierMatcher(),
-    # NNMatcher(),  # uncomment when Stage 3b is implemented
 ]
+
+try:
+    from .nn import NeuralMatcher
+    MATCHERS.append(NeuralMatcher())
+except FileNotFoundError:
+    pass
+

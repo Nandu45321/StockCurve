@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css?v=9" />
+  <link rel="stylesheet" href="/static/style.css?v=13" />
   <!-- PNG Favicon -->
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
@@ -59,6 +59,20 @@
               </label>
               <label class="cap-toggle" id="toggle-small">
                 <input type="checkbox" id="cap-small" /> Small
+              </label>
+            </div>
+
+            <span class="controls-separator">Matchers</span>
+
+            <div class="controls-group matcher-toggles">
+              <label class="matcher-toggle active" id="toggle-euclidean">
+                <input type="checkbox" id="matcher-euclidean" checked /> Euclidean
+              </label>
+              <label class="matcher-toggle active" id="toggle-fourier">
+                <input type="checkbox" id="matcher-fourier" checked /> Fourier
+              </label>
+              <label class="matcher-toggle active" id="toggle-nn">
+                <input type="checkbox" id="matcher-nn" checked /> Neural Net
               </label>
             </div>
 
@@ -116,18 +130,31 @@
 
       </aside>
 
-      <!-- ═══════════════════════════════════════════
+      <!-- ═════════════════════════════════════════════
            RIGHT — predicted stocks
-           ═══════════════════════════════════════════ -->
+           ═════════════════════════════════════════════ -->
       <section class="right-panel" id="results-section" aria-label="Search results">
         <h2>Matches</h2>
+
+        <!-- Tab bar — always visible -->
+        <nav class="results-tabs" role="tablist" aria-label="Matcher results">
+          <button class="results-tab active" id="tab-btn-Blended"      role="tab" aria-controls="tab-panel-Blended"      aria-selected="true"  data-tab="Blended"    >Blended</button>
+          <button class="results-tab"        id="tab-btn-Euclidean"    role="tab" aria-controls="tab-panel-Euclidean"    aria-selected="false" data-tab="Euclidean"  >Euclidean</button>
+          <button class="results-tab"        id="tab-btn-Fourier"      role="tab" aria-controls="tab-panel-Fourier"      aria-selected="false" data-tab="Fourier"    >Fourier</button>
+          <button class="results-tab"        id="tab-btn-Neural-Net"   role="tab" aria-controls="tab-panel-Neural-Net"   aria-selected="false" data-tab="Neural Net" >Neural Net</button>
+        </nav>
 
         <!-- Placeholder shown before first search -->
         <div class="results-placeholder" id="results-placeholder">
           <p>Draw a curve on the left to find matching stocks.</p>
         </div>
 
-        <div id="results-grid" class="results-grid" role="list"></div>
+        <!-- One panel per tab -->
+        <div id="tab-panel-Blended"    class="tab-panel active" role="tabpanel" aria-labelledby="tab-btn-Blended"   ><div class="results-grid" id="grid-Blended"    role="list"></div></div>
+        <div id="tab-panel-Euclidean"  class="tab-panel"        role="tabpanel" aria-labelledby="tab-btn-Euclidean" ><div class="results-grid" id="grid-Euclidean"  role="list"></div></div>
+        <div id="tab-panel-Fourier"    class="tab-panel"        role="tabpanel" aria-labelledby="tab-btn-Fourier"   ><div class="results-grid" id="grid-Fourier"    role="list"></div></div>
+        <div id="tab-panel-Neural-Net" class="tab-panel"        role="tabpanel" aria-labelledby="tab-btn-Neural-Net"><div class="results-grid" id="grid-Neural-Net" role="list"></div></div>
+
       </section>
 
     </div><!-- /app-grid -->
@@ -267,11 +294,32 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   cb.addEventListener('change', () => {
     if (cb.checked) lbl.classList.add('active');
     else            lbl.classList.remove('active');
-    
-    // Auto-search if sketch exists
     if (points.length > 10) prepareAndSend();
   });
 });
+
+// ---------------------------------------------------------------
+// Matcher toggles — visual sync (no auto-search, just state)
+// ---------------------------------------------------------------
+[['euclidean', 'Euclidean'], ['fourier', 'Fourier'], ['nn', 'Neural Net']].forEach(([id, name]) => {
+  const lbl = document.getElementById(`toggle-${id}`);
+  const cb  = document.getElementById(`matcher-${id}`);
+  cb.addEventListener('change', () => {
+    if (cb.checked) lbl.classList.add('active');
+    else            lbl.classList.remove('active');
+    if (points.length > 10) prepareAndSend();
+  });
+});
+
+function getEnabledMatchers() {
+  /** Return array of enabled matcher names to send in POST body. */
+  const map = [
+    ['matcher-euclidean', 'Euclidean'],
+    ['matcher-fourier',   'Fourier'],
+    ['matcher-nn',        'Neural Net'],
+  ];
+  return map.filter(([id]) => document.getElementById(id).checked).map(([, name]) => name);
+}
 
 document.getElementById('smoothing-slider').addEventListener('change', () => {
   if (points.length > 10) {
@@ -327,12 +375,14 @@ async function prepareAndSend() {
     mid:         document.getElementById('cap-mid').checked,
     small:       document.getElementById('cap-small').checked,
     window_days: parseInt(document.getElementById('window-days').value, 10),
-    smoothing:   parseFloat(document.getElementById('smoothing-slider').value)
+    smoothing:   parseFloat(document.getElementById('smoothing-slider').value),
+    matchers:    getEnabledMatchers(),
   };
 
   resetProgress();
   showProgress();
   clearResults();
+  setTabsLoading();   // show "Searching..." in all tab panels
 
   try {
     const res = await fetch('/search', {
@@ -390,7 +440,7 @@ function handleStageEvent(event) {
       '<span class="spinner" aria-label="Running"></span>';
   }
 
-  if (s === 4 && event.results && event.results.length > 0) {
+  if (s === 4 && event.results) {
     renderResults(event.results, event.smoothed_sketch);
   }
 }
@@ -409,69 +459,128 @@ function hideProgress() {
 // Track Chart.js instances so we can destroy them before re-rendering
 const _charts = [];
 
+// ---------------------------------------------------------------
+// Tab switching
+// ---------------------------------------------------------------
+const TAB_NAMES = ['Blended', 'Euclidean', 'Fourier', 'Neural Net'];
+
+function tabPanelId(name)  { return 'tab-panel-' + name.replace(' ', '-'); }
+function tabBtnId(name)    { return 'tab-btn-'   + name.replace(' ', '-'); }
+function tabGridId(name)   { return 'grid-'      + name.replace(' ', '-'); }
+
+document.querySelectorAll('.results-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // Deactivate all
+    document.querySelectorAll('.results-tab').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // Activate clicked
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    document.getElementById(tabPanelId(btn.dataset.tab)).classList.add('active');
+  });
+});
+
+function setTabsLoading() {
+  /** Show a loading message in every tab panel. */
+  TAB_NAMES.forEach(name => {
+    const grid = document.getElementById(tabGridId(name));
+    if (grid) grid.innerHTML = '<div class="tab-state-msg">Searching…</div>';
+  });
+}
+
 function clearResults() {
-  // Destroy all existing Chart.js instances to free memory and avoid canvas reuse errors
+  // Destroy all existing Chart.js instances to free memory
   _charts.forEach(c => c.destroy());
   _charts.length = 0;
-  document.getElementById('results-placeholder').style.display = '';
-  document.getElementById('results-grid').innerHTML = '';
+  document.getElementById('results-placeholder').style.display = 'none';
+  TAB_NAMES.forEach(name => {
+    const grid = document.getElementById(tabGridId(name));
+    if (grid) grid.innerHTML = '';
+  });
+  // Reset to Blended tab
+  document.querySelectorAll('.results-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === 'Blended');
+    b.setAttribute('aria-selected', b.dataset.tab === 'Blended' ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-panel-Blended');
+  });
 }
 
 // ---------------------------------------------------------------
 // Result rendering + Chart.js charts
 // ---------------------------------------------------------------
-function renderResults(results, smoothed_sketch) {
-  document.getElementById('results-placeholder').style.display = 'none';
-  const grid = document.getElementById('results-grid');
-  grid.innerHTML = '';
+function renderResults(perMatcher, smoothed_sketch) {
+  /** Render all four matcher tabs from the per-matcher results dict. */
+  const enabledMatchers = getEnabledMatchers();
 
-  const sketchOverlay = smoothed_sketch ? znormJS(smoothed_sketch) : null;
+  TAB_NAMES.forEach(name => {
+    const grid    = document.getElementById(tabGridId(name));
+    const results = perMatcher[name] || [];
 
-  const windowDays = parseInt(document.getElementById('window-days').value, 10);
+    grid.innerHTML = '';
 
-  results.forEach((r, idx) => {
-    const matchPct = Math.max(0, Math.round((1 - Math.min(r.score / 10, 1)) * 100));
-    const euPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Euclidean / 10, 1)) * 100));
-    const foPct    = Math.max(0, Math.round((1 - Math.min(r.matcher_scores.Fourier   / 10, 1)) * 100));
+    if (!enabledMatchers.includes(name) && name !== 'Blended') {
+      grid.innerHTML = '<div class="tab-state-msg">Matcher disabled</div>';
+      return;
+    }
+    if (results.length === 0) {
+      grid.innerHTML = '<div class="tab-state-msg">No results</div>';
+      return;
+    }
 
-    // Calculate approximate start date (trading days -> calendar days)
-    const endDate = new Date(r.date_end);
-    const startDate = new Date(endDate.getTime() - windowDays * 1.45 * 24 * 60 * 60 * 1000);
-    const fmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const dateRangeStr = `${fmt.format(startDate)} — ${fmt.format(endDate)}`;
+    const sketchOverlay = smoothed_sketch ? znormJS(smoothed_sketch) : null;
+    const windowDays    = parseInt(document.getElementById('window-days').value, 10);
 
-    const article = document.createElement('article');
-    article.className = 'result-card';
-    article.setAttribute('role', 'listitem');
-    article.style.animationDelay = `${idx * 0.07}s`;
+    results.forEach((r, idx) => {
+      const canvasId  = `mini-${name.replace(' ','-')}-${idx}`;
+      // match_pct, mae, std_err are all computed server-side (MAE-based)
+      const maeStr    = r.mae    != null ? r.mae.toFixed(2)    : '—';
+      const stdStr    = r.std_err != null ? r.std_err.toFixed(2) : '—';
 
-    article.innerHTML = `
-      <header class="result-header">
-        <div class="result-meta">
-          <span class="result-rank">#${idx + 1}</span>
-          <strong class="result-symbol">${r.symbol}</strong>
-          <span class="result-name">${r.name}</span>
+      const endDate   = new Date(r.date_end);
+      const startDate = new Date(endDate.getTime() - windowDays * 1.45 * 24 * 60 * 60 * 1000);
+      const fmt       = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const dateStr   = `${fmt.format(startDate)} — ${fmt.format(endDate)}`;
+
+      // Build score footer — raw internal distances (NOT MAE; different scale per matcher)
+      const scoreSpans = [];
+      if (r.matcher_scores.Euclidean   != null) scoreSpans.push(`<span class="score-eu">Euclidean ${r.matcher_scores.Euclidean.toFixed(2)} dist</span>`);
+      if (r.matcher_scores.Fourier     != null) scoreSpans.push(`<span class="score-fo">Fourier ${r.matcher_scores.Fourier.toFixed(2)} dist</span>`);
+      if (r.matcher_scores['Neural Net'] != null) scoreSpans.push(`<span class="score-nn">Neural Net ${r.matcher_scores['Neural Net'].toFixed(2)} dist</span>`);
+
+      const article = document.createElement('article');
+      article.className = 'result-card';
+      article.setAttribute('role', 'listitem');
+      article.style.animationDelay = `${idx * 0.07}s`;
+      article.innerHTML = `
+        <header class="result-header">
+          <div class="result-meta">
+            <span class="result-rank">#${idx + 1}</span>
+            <strong class="result-symbol">${r.symbol}</strong>
+            <span class="result-name">${r.name}</span>
+          </div>
+          <div class="result-score">
+            <span class="score-label">Avg Error</span>
+            <div class="score-value">${maeStr}<span>σ</span></div>
+            <div class="score-mae">± ${stdStr}σ variance</div>
+          </div>
+        </header>
+        <div class="chart-container">
+          <canvas id="${canvasId}" aria-label="Price curve for ${r.symbol}"></canvas>
         </div>
-        <div class="result-score">
-          <span class="score-label">Match</span>
-          <div class="score-value">${matchPct}<span>%</span></div>
-        </div>
-      </header>
+        <footer class="result-footer">
+          ${scoreSpans.join('')}
+          <span style="margin-left: auto;"> ${dateStr}</span>
+        </footer>
+      `;
 
-      <div class="chart-container">
-        <canvas id="mini-${idx}" aria-label="Price curve for ${r.symbol}"></canvas>
-      </div>
-
-      <footer class="result-footer">
-        <span class="score-eu">Euclidean ${euPct}%</span>
-        <span class="score-fo">Fourier ${foPct}%</span>
-        <span style="margin-left: auto;"> ${dateRangeStr}</span>
-      </footer>
-    `;
-
-    grid.appendChild(article);
-    // Draw after DOM insertion so Chart.js can measure the canvas
-    requestAnimationFrame(() => drawMiniChart(`mini-${idx}`, r, sketchOverlay));
+      grid.appendChild(article);
+      requestAnimationFrame(() => drawMiniChart(canvasId, r, sketchOverlay));
+    });
   });
 }
 

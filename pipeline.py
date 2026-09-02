@@ -16,7 +16,15 @@ import numpy as np
 from typing import AsyncGenerator
 
 from matchers.euclidean import EuclideanMatcher
-from matchers.fourier import FourierMatcher
+from matchers.fourier   import FourierMatcher
+from matchers.base      import vertical_mae, mae_to_pct, shape_score
+
+# NeuralMatcher is optional — only available after python train.py
+try:
+    from matchers.nn import NeuralMatcher as _NeuralMatcher
+    _neural_matcher = _NeuralMatcher()
+except FileNotFoundError:
+    _neural_matcher = None
 
 
 # ---------------------------------------------------------------------------
@@ -94,49 +102,111 @@ def stage1_filter(
 
 
 # ---------------------------------------------------------------------------
-# Convergence layer
+# Convergence helpers
 # ---------------------------------------------------------------------------
 
-def convergence(
+def _enrich(cand: dict, score: float, meta_map: dict, sketch: np.ndarray) -> dict:
+    """Build a result dict from a candidate window, including MAE-based match quality."""
+    symbol = cand["symbol"]
+    meta   = meta_map.get(symbol, {})
+    eu = cand.get("euclidean_score", 0.0)
+    fo = cand.get("fourier_score",   0.0)
+    nn = cand.get("nn_score")
+    matcher_scores = {"Euclidean": round(eu, 6), "Fourier": round(fo, 6)}
+    if nn is not None:
+        matcher_scores["Neural Net"] = round(nn, 6)
+
+    # MAE is always sketch vs this window's z-normalized curve (post-hoc display metric)
+    errors   = np.abs(sketch - cand["norm"])
+    mae      = float(np.mean(errors))
+    std_err  = float(np.std(errors))
+    sshape   = mae + std_err      # combined ranking score (MAE + std)
+
+    return {
+        "symbol":         symbol,
+        "name":           meta.get("name", symbol),
+        "date_end":       cand["date_end"],
+        "score":          round(sshape, 6),   # shape_score is the canonical sort key
+        "mae":            round(mae, 4),
+        "std_err":        round(std_err, 4),
+        "match_pct":      mae_to_pct(mae),
+        "curve":          cand["norm"].tolist(),
+        "raw_curve":      cand["raw"].tolist(),
+        "matcher_scores": matcher_scores,
+    }
+
+
+def _top_n_deduped(
+    scored: list[tuple[float, dict]],
+    n: int,
+    meta_map: dict,
+    sketch: np.ndarray,
+) -> list[dict]:
+    """
+    Use matcher score to select candidates (dedup by symbol), then re-sort
+    the collected top-n by shape_score (MAE + std) ascending.
+    """
+    scored_sorted = sorted(scored, key=lambda x: x[0])
+    seen: set[str] = set()
+    collected: list[dict] = []
+    for matcher_score, cand in scored_sorted:
+        sym = cand["symbol"]
+        if sym not in seen:
+            seen.add(sym)
+            collected.append(_enrich(cand, matcher_score, meta_map, sketch))
+        if len(collected) == n:
+            break
+    # Re-sort by shape_score (stored in "score" field) so display is always
+    # ascending by MAE+std regardless of which matcher was used for selection.
+    collected.sort(key=lambda r: r["score"])
+    return collected
+
+
+def build_per_matcher_results(
     candidates: list[dict],
     sketch: np.ndarray,
     meta_map: dict[str, dict],
-) -> list[dict]:
+    enabled: set[str],
+    n: int = 5,
+) -> dict[str, list[dict]]:
     """
-    Blend euclidean_score and fourier_score using sharpness-weighted alpha.
+    Build independent top-n lists for each enabled matcher plus a Blended list.
 
-    alpha = sigmoid(sharpness(sketch) * 5)
-    final_score = alpha * euclidean_score + (1 - alpha) * fourier_score
-
-    Returns top 5 enriched result dicts.
+    Returns a dict keyed by matcher name:
+      { "Euclidean": [...], "Fourier": [...], "Neural Net": [...], "Blended": [...] }
+    Disabled matchers map to an empty list. Each result has mae and match_pct.
     """
     sharp = sharpness(sketch)
     alpha = sigmoid(sharp * 5)
 
-    results = []
+    eu_scored: list[tuple[float, dict]] = []
+    fo_scored: list[tuple[float, dict]] = []
+    nn_scored: list[tuple[float, dict]] = []
+    bl_scored: list[tuple[float, dict]] = []
+
     for cand in candidates:
         eu = cand.get("euclidean_score", 0.0)
-        fo = cand.get("fourier_score", 0.0)
-        final = alpha * eu + (1 - alpha) * fo
+        fo = cand.get("fourier_score",   0.0)
+        nn = cand.get("nn_score")
 
-        symbol = cand["symbol"]
-        meta = meta_map.get(symbol, {})
+        if "Euclidean" in enabled:
+            eu_scored.append((eu, cand))
+        if "Fourier" in enabled:
+            fo_scored.append((fo, cand))
+        if "Neural Net" in enabled and nn is not None:
+            nn_scored.append((nn, cand))
 
-        results.append({
-            "symbol": symbol,
-            "name": meta.get("name", symbol),
-            "date_end": cand["date_end"],
-            "score": round(final, 6),
-            "curve": cand["norm"].tolist(),
-            "raw_curve": cand["raw"].tolist(),
-            "matcher_scores": {
-                "Euclidean": round(eu, 6),
-                "Fourier": round(fo, 6),
-            },
-        })
+        # Blended: include only if at least one score is available
+        eu_term = (eu + nn) / 2.0 if (nn is not None and "Neural Net" in enabled) else eu
+        final   = alpha * eu_term + (1 - alpha) * fo
+        bl_scored.append((final, cand))
 
-    results.sort(key=lambda x: x["score"])
-    return results[:10]
+    return {
+        "Euclidean":  _top_n_deduped(eu_scored, n, meta_map, sketch) if eu_scored else [],
+        "Fourier":    _top_n_deduped(fo_scored, n, meta_map, sketch) if fo_scored else [],
+        "Neural Net": _top_n_deduped(nn_scored, n, meta_map, sketch) if nn_scored else [],
+        "Blended":    _top_n_deduped(bl_scored, n, meta_map, sketch),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +233,7 @@ async def run_pipeline(
         search_id:   unique search ID for research logging
     """
     total = len(all_windows)
+    enabled_matchers: set[str] = set(filters.get("matchers", ["Euclidean", "Fourier", "Neural Net"]))
 
     # ------------------------------------------------------------------
     # Stage 1 — Hard filters
@@ -213,34 +284,55 @@ async def run_pipeline(
     }
 
     # ------------------------------------------------------------------
-    # Convergence layer
+    # Stage 3b — Neural Net (optional; skipped if disabled or not loaded)
+    # ------------------------------------------------------------------
+    if _neural_matcher is not None and "Neural Net" in enabled_matchers:
+        nn_results = _neural_matcher.match(sketch, candidates)
+        nn_score_map = {
+            (r["symbol"], r["date_end"]): r["score"]
+            for r in nn_results
+        }
+        candidates = [
+            {**c, "nn_score": nn_score_map.get((c["symbol"], c["date_end"]), None)}
+            for c in candidates
+        ]
+
+    # ------------------------------------------------------------------
+    # Convergence layer — build per-matcher + blended top-5 lists
     # ------------------------------------------------------------------
     sharp = sharpness(sketch)
     alpha = sigmoid(sharp * 5)
 
-    top10 = convergence(candidates, sketch, meta_map)
+    per_matcher = build_per_matcher_results(
+        candidates, sketch, meta_map, enabled_matchers, n=5
+    )
+    blended_top = per_matcher["Blended"]
 
     # Research log (stdout as required by AGENTS.md)
-    euclidean_top10 = [c["symbol"] for c in sorted(
+    euclidean_top = [c["symbol"] for c in sorted(
         candidates, key=lambda x: x.get("euclidean_score", 9e9))[:10]]
-    fourier_top10 = [c["symbol"] for c in sorted(
+    fourier_top   = [c["symbol"] for c in sorted(
         candidates, key=lambda x: x.get("fourier_score", 9e9))[:10]]
-    final_top10 = [r["symbol"] for r in top10]
+    nn_top        = [c["symbol"] for c in sorted(
+        candidates, key=lambda x: x.get("nn_score") or 9e9)[:10]] \
+        if (_neural_matcher is not None and "Neural Net" in enabled_matchers) else []
 
     research_log = {
-        "search_id": search_id,
-        "sharpness": round(sharp, 6),
-        "alpha": round(alpha, 6),
+        "search_id":    search_id,
+        "sharpness":    round(sharp, 6),
+        "alpha":        round(alpha, 6),
         "stage1_count": stage1_count,
         "stage2_count": stage2_count,
         "stage3_count": stage3_count,
-        "euclidean_top": euclidean_top10,
-        "fourier_top": fourier_top10,
-        "final_top": final_top10,
+        "enabled_matchers": list(enabled_matchers),
+        "euclidean_top": euclidean_top,
+        "fourier_top":   fourier_top,
+        "nn_top":        nn_top,
+        "final_top":     [r["symbol"] for r in blended_top],
     }
     print(json.dumps(research_log))
 
-    # Calculate smoothed_sketch to send to frontend for overlay
+    # Calculate smoothed sketch for overlay
     sigma = filters.get("smoothing", 2.0)
     if sigma > 0:
         from scipy.ndimage import gaussian_filter1d
@@ -250,10 +342,10 @@ async def run_pipeline(
 
     yield {
         "stage": 4,
-        "label": "Convergence",
+        "label": "Final results",
         "status": "done",
-        "remaining": len(top10),
+        "remaining": len(blended_top),
         "total": total,
-        "results": top10,
+        "results": per_matcher,          # dict keyed by matcher name
         "smoothed_sketch": smoothed_sketch.tolist(),
     }
