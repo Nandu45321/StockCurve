@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css?v=13" />
+  <link rel="stylesheet" href="/static/style.css?v=14" />
   <!-- PNG Favicon -->
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <!-- Chart.js — result chart rendering with axes, labels, tooltips -->
@@ -74,6 +74,14 @@
               <label class="matcher-toggle active" id="toggle-nn">
                 <input type="checkbox" id="matcher-nn" checked /> Neural Net
               </label>
+            </div>
+
+            <span class="controls-separator">Ranking Mode</span>
+
+            <div class="controls-group scoring-mode-group" role="radiogroup" aria-label="Ranking mode">
+              <button class="scoring-mode-btn" id="score-btn-mae"      data-mode="mae"        aria-pressed="false">MAE</button>
+              <button class="scoring-mode-btn active" id="score-btn-abs_var"  data-mode="abs_var"    aria-pressed="true" >MAE + |σ|</button>
+              <button class="scoring-mode-btn" id="score-btn-signed_var" data-mode="signed_var" aria-pressed="false">MAE + σ</button>
             </div>
 
             <div class="controls-group">
@@ -321,6 +329,25 @@ function getEnabledMatchers() {
   return map.filter(([id]) => document.getElementById(id).checked).map(([, name]) => name);
 }
 
+function getActiveScoringMode() {
+  /** Return the currently selected scoring mode string. */
+  const active = document.querySelector('.scoring-mode-btn.active');
+  return active ? active.dataset.mode : 'abs_var';
+}
+
+// Scoring mode toggle — single-select, auto-re-search
+document.querySelectorAll('.scoring-mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scoring-mode-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    if (points.length > 10) prepareAndSend();
+  });
+});
+
 document.getElementById('smoothing-slider').addEventListener('change', () => {
   if (points.length > 10) {
     prepareAndSend();
@@ -371,12 +398,13 @@ async function prepareAndSend() {
   const sketch = znormJS(resampleJS(yRaw, 50));
 
   const filters = {
-    large:       document.getElementById('cap-large').checked,
-    mid:         document.getElementById('cap-mid').checked,
-    small:       document.getElementById('cap-small').checked,
-    window_days: parseInt(document.getElementById('window-days').value, 10),
-    smoothing:   parseFloat(document.getElementById('smoothing-slider').value),
-    matchers:    getEnabledMatchers(),
+    large:        document.getElementById('cap-large').checked,
+    mid:          document.getElementById('cap-mid').checked,
+    small:        document.getElementById('cap-small').checked,
+    window_days:  parseInt(document.getElementById('window-days').value, 10),
+    smoothing:    parseFloat(document.getElementById('smoothing-slider').value),
+    matchers:     getEnabledMatchers(),
+    scoring_mode: getActiveScoringMode(),
   };
 
   resetProgress();
@@ -537,9 +565,19 @@ function renderResults(perMatcher, smoothed_sketch) {
 
     results.forEach((r, idx) => {
       const canvasId  = `mini-${name.replace(' ','-')}-${idx}`;
-      // match_pct, mae, std_err are all computed server-side (MAE-based)
-      const maeStr    = r.mae    != null ? r.mae.toFixed(2)    : '—';
-      const stdStr    = r.std_err != null ? r.std_err.toFixed(2) : '—';
+      // mae, std_abs, std_signed, scoring_mode are all computed server-side
+      const maeStr    = r.mae     != null ? r.mae.toFixed(2)     : '—';
+      const mode      = r.scoring_mode || 'abs_var';
+      let   stdVal, stdLabel;
+      if (mode === 'mae') {
+        stdVal = null;   // no variance term
+      } else if (mode === 'signed_var') {
+        stdVal   = r.std_signed != null ? r.std_signed.toFixed(2) : '—';
+        stdLabel = '± ' + stdVal + 'σ (signed)';
+      } else {
+        stdVal   = r.std_abs != null ? r.std_abs.toFixed(2) : '—';
+        stdLabel = '± ' + stdVal + 'σ |variance|';
+      }
 
       const endDate   = new Date(r.date_end);
       const startDate = new Date(endDate.getTime() - windowDays * 1.45 * 24 * 60 * 60 * 1000);
@@ -566,7 +604,7 @@ function renderResults(perMatcher, smoothed_sketch) {
           <div class="result-score">
             <span class="score-label">Avg Error</span>
             <div class="score-value">${maeStr}<span>σ</span></div>
-            <div class="score-mae">± ${stdStr}σ variance</div>
+            ${stdVal != null ? `<div class="score-mae">${stdLabel}</div>` : ''}
           </div>
         </header>
         <div class="chart-container">

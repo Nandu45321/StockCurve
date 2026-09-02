@@ -105,8 +105,9 @@ def stage1_filter(
 # Convergence helpers
 # ---------------------------------------------------------------------------
 
-def _enrich(cand: dict, score: float, meta_map: dict, sketch: np.ndarray) -> dict:
-    """Build a result dict from a candidate window, including MAE-based match quality."""
+def _enrich(cand: dict, score: float, meta_map: dict, sketch: np.ndarray,
+            scoring_mode: str = "abs_var") -> dict:
+    """Build a result dict, computing the ranking score based on scoring_mode."""
     symbol = cand["symbol"]
     meta   = meta_map.get(symbol, {})
     eu = cand.get("euclidean_score", 0.0)
@@ -116,19 +117,28 @@ def _enrich(cand: dict, score: float, meta_map: dict, sketch: np.ndarray) -> dic
     if nn is not None:
         matcher_scores["Neural Net"] = round(nn, 6)
 
-    # MAE is always sketch vs this window's z-normalized curve (post-hoc display metric)
-    errors   = np.abs(sketch - cand["norm"])
-    mae      = float(np.mean(errors))
-    std_err  = float(np.std(errors))
-    sshape   = mae + std_err      # combined ranking score (MAE + std)
+    errors_abs    = np.abs(sketch - cand["norm"])          # |e_i|
+    errors_signed = sketch - cand["norm"]                   # e_i (signed)
+    mae           = float(np.mean(errors_abs))
+    std_abs       = float(np.std(errors_abs))               # std(|e_i|)
+    std_signed    = float(np.std(errors_signed))            # std(e_i)
+
+    if scoring_mode == "mae":
+        final_score = mae
+    elif scoring_mode == "signed_var":
+        final_score = mae + std_signed
+    else:                                                    # "abs_var" (default)
+        final_score = mae + std_abs
 
     return {
         "symbol":         symbol,
         "name":           meta.get("name", symbol),
         "date_end":       cand["date_end"],
-        "score":          round(sshape, 6),   # shape_score is the canonical sort key
+        "score":          round(final_score, 6),
         "mae":            round(mae, 4),
-        "std_err":        round(std_err, 4),
+        "std_abs":        round(std_abs, 4),
+        "std_signed":     round(std_signed, 4),
+        "scoring_mode":   scoring_mode,
         "match_pct":      mae_to_pct(mae),
         "curve":          cand["norm"].tolist(),
         "raw_curve":      cand["raw"].tolist(),
@@ -141,10 +151,11 @@ def _top_n_deduped(
     n: int,
     meta_map: dict,
     sketch: np.ndarray,
+    scoring_mode: str = "abs_var",
 ) -> list[dict]:
     """
     Use matcher score to select candidates (dedup by symbol), then re-sort
-    the collected top-n by shape_score (MAE + std) ascending.
+    the collected top-n by the active scoring_mode ascending.
     """
     scored_sorted = sorted(scored, key=lambda x: x[0])
     seen: set[str] = set()
@@ -153,11 +164,9 @@ def _top_n_deduped(
         sym = cand["symbol"]
         if sym not in seen:
             seen.add(sym)
-            collected.append(_enrich(cand, matcher_score, meta_map, sketch))
+            collected.append(_enrich(cand, matcher_score, meta_map, sketch, scoring_mode))
         if len(collected) == n:
             break
-    # Re-sort by shape_score (stored in "score" field) so display is always
-    # ascending by MAE+std regardless of which matcher was used for selection.
     collected.sort(key=lambda r: r["score"])
     return collected
 
@@ -167,6 +176,7 @@ def build_per_matcher_results(
     sketch: np.ndarray,
     meta_map: dict[str, dict],
     enabled: set[str],
+    scoring_mode: str = "abs_var",
     n: int = 5,
 ) -> dict[str, list[dict]]:
     """
@@ -174,7 +184,8 @@ def build_per_matcher_results(
 
     Returns a dict keyed by matcher name:
       { "Euclidean": [...], "Fourier": [...], "Neural Net": [...], "Blended": [...] }
-    Disabled matchers map to an empty list. Each result has mae and match_pct.
+    Disabled matchers map to an empty list. Each result has mae, std_abs, std_signed.
+    scoring_mode controls the final ranking: 'mae' | 'abs_var' | 'signed_var'.
     """
     sharp = sharpness(sketch)
     alpha = sigmoid(sharp * 5)
@@ -196,16 +207,16 @@ def build_per_matcher_results(
         if "Neural Net" in enabled and nn is not None:
             nn_scored.append((nn, cand))
 
-        # Blended: include only if at least one score is available
         eu_term = (eu + nn) / 2.0 if (nn is not None and "Neural Net" in enabled) else eu
         final   = alpha * eu_term + (1 - alpha) * fo
         bl_scored.append((final, cand))
 
+    kw = dict(scoring_mode=scoring_mode)
     return {
-        "Euclidean":  _top_n_deduped(eu_scored, n, meta_map, sketch) if eu_scored else [],
-        "Fourier":    _top_n_deduped(fo_scored, n, meta_map, sketch) if fo_scored else [],
-        "Neural Net": _top_n_deduped(nn_scored, n, meta_map, sketch) if nn_scored else [],
-        "Blended":    _top_n_deduped(bl_scored, n, meta_map, sketch),
+        "Euclidean":  _top_n_deduped(eu_scored, n, meta_map, sketch, **kw) if eu_scored else [],
+        "Fourier":    _top_n_deduped(fo_scored, n, meta_map, sketch, **kw) if fo_scored else [],
+        "Neural Net": _top_n_deduped(nn_scored, n, meta_map, sketch, **kw) if nn_scored else [],
+        "Blended":    _top_n_deduped(bl_scored, n, meta_map, sketch, **kw),
     }
 
 
@@ -234,6 +245,7 @@ async def run_pipeline(
     """
     total = len(all_windows)
     enabled_matchers: set[str] = set(filters.get("matchers", ["Euclidean", "Fourier", "Neural Net"]))
+    scoring_mode: str = filters.get("scoring_mode", "abs_var")
 
     # ------------------------------------------------------------------
     # Stage 1 — Hard filters
@@ -304,7 +316,8 @@ async def run_pipeline(
     alpha = sigmoid(sharp * 5)
 
     per_matcher = build_per_matcher_results(
-        candidates, sketch, meta_map, enabled_matchers, n=5
+        candidates, sketch, meta_map, enabled_matchers,
+        scoring_mode=scoring_mode, n=5
     )
     blended_top = per_matcher["Blended"]
 

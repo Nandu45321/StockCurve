@@ -96,6 +96,7 @@ class Filters(BaseModel):
     window_days: int = 60
     smoothing: float = 2.0
     matchers: list[str] = ["Euclidean", "Fourier", "Neural Net"]
+    scoring_mode: str = "abs_var"   # "mae" | "abs_var" | "signed_var"
 
 
 class SearchRequest(BaseModel):

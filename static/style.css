@@ -508,6 +508,35 @@ ul, ol { list-style: none; }
   margin-top: 0.5rem;
 }
 
+/* Scoring mode 3-way toggle */
+.scoring-mode-group {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.scoring-mode-btn {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-fg);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms, background 150ms;
+}
+.scoring-mode-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+.scoring-mode-btn.active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 /* --------------------------------------------------------------------------
    Results Tab Bar
    -------------------------------------------------------------------------- */
